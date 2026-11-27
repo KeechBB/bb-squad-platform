@@ -55,9 +55,33 @@ type PersonalDay = {
 
 type Tab = "factions" | "players";
 
+type SelfListInfo = {
+  meUserId: string;
+  factionId: string;
+  factionSlug: string;
+  factionName: string;
+  personalBd: number;
+  marketBd: number;
+  enoughBalance: boolean;
+  onAuction: boolean;
+  lotId: string | null;
+  lotKind: string | null;
+  contract: { factionName: string; endsAt: string } | null;
+};
+
 type PlayerSortKey = "nick" | "faction" | "seat" | "balance";
 type FactionSortKey = "name" | "balance" | "members";
 type SortDir = "asc" | "desc";
+
+function fmtDate(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
 
 const SEAT_RANK: Record<string, number> = {
   LEADER: 0,
@@ -161,6 +185,10 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
   const [playerDays, setPlayerDays] = useState<PersonalDay[]>([]);
   const [playerDayLoading, setPlayerDayLoading] = useState(false);
   const [playerDayOpen, setPlayerDayOpen] = useState<PersonalDay | null>(null);
+  const [selfList, setSelfList] = useState<SelfListInfo | null>(null);
+  const [selfBusy, setSelfBusy] = useState(false);
+  const [contractBlockOpen, setContractBlockOpen] = useState(false);
+  const [balanceBlockOpen, setBalanceBlockOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,6 +202,7 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
         error?: string;
         factions?: FactionRow[];
         players?: PlayerRow[];
+        selfList?: SelfListInfo | null;
         totals?: { factionTreasury: number; playerPersonal: number };
         minYmd?: string;
       };
@@ -181,10 +210,12 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
         setErr(json.error || "Не удалось загрузить балансы");
         setFactions([]);
         setPlayers([]);
+        setSelfList(null);
         return;
       }
       setFactions(json.factions || []);
       setPlayers(json.players || []);
+      setSelfList(json.selfList || null);
       setTotals(
         json.totals || { factionTreasury: 0, playerPersonal: 0 },
       );
@@ -199,6 +230,59 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function selfListToAuction() {
+    if (!selfList || selfList.onAuction) return;
+    if (selfList.contract) {
+      setContractBlockOpen(true);
+      return;
+    }
+    if (!selfList.enoughBalance) {
+      setBalanceBlockOpen(true);
+      return;
+    }
+    const ok = window.confirm(
+      `Выставить себя на аукцион?\nРыночная стоимость / мин. ставка: ${selfList.marketBd.toLocaleString("ru-RU")} B$.\nТы остаёшься во фракции, пока кого-то не купят. При покупке другой фракцией тебе 20% победной ставки на личный B$. Свою фракцию тоже могут выкупить.`,
+    );
+    if (!ok) return;
+    setSelfBusy(true);
+    setErr("");
+    try {
+      const auctionSlug = selfList.factionSlug || slug;
+      const res = await fetch(
+        `/api/factions/${encodeURIComponent(auctionSlug)}/auction`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ op: "self_list" }),
+        },
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok) {
+        if (json.error === "contract_active") {
+          setContractBlockOpen(true);
+          return;
+        }
+        if (
+          String(json.error || "").includes("меньше рыночной") ||
+          json.error === "balance_low"
+        ) {
+          setBalanceBlockOpen(true);
+          return;
+        }
+        setErr(json.message || json.error || "Не удалось выставить");
+        return;
+      }
+      await load();
+    } catch {
+      setErr("Сеть недоступна");
+    } finally {
+      setSelfBusy(false);
+    }
+  }
 
   const filteredPlayers = useMemo(() => {
     const q = nickFilter.trim().toLowerCase();
@@ -514,40 +598,72 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
                     dir={playerSort.dir}
                     onClick={() => togglePlayerSort("balance")}
                   />
+                  <th aria-label="Аукцион" />
                 </tr>
               </thead>
               <tbody>
-                {filteredPlayers.map((p) => (
-                  <tr
-                    key={p.userId}
-                    className="faction-balances-player-row"
-                    onClick={() => void openPlayer(p)}
-                  >
-                    <td>
-                      <strong className="xfer-nick">{p.nick}</strong>
-                    </td>
-                    <td>
-                      <span className="faction-balances-player-fac">
-                        <FactionLogo
-                          url={p.factionLogoUrl}
-                          name={p.factionName}
-                          color={p.factionColor}
-                          size={28}
-                        />
-                        <span style={{ color: p.factionColor }}>
-                          {p.factionName}
+                {filteredPlayers.map((p) => {
+                  const isMe = Boolean(
+                    selfList?.meUserId && selfList.meUserId === p.userId,
+                  );
+                  return (
+                    <tr
+                      key={p.userId}
+                      className="faction-balances-player-row"
+                      onClick={() => void openPlayer(p)}
+                    >
+                      <td>
+                        <strong className="xfer-nick">{p.nick}</strong>
+                      </td>
+                      <td>
+                        <span className="faction-balances-player-fac">
+                          <FactionLogo
+                            url={p.factionLogoUrl}
+                            name={p.factionName}
+                            color={p.factionColor}
+                            size={28}
+                          />
+                          <span style={{ color: p.factionColor }}>
+                            {p.factionName}
+                          </span>
                         </span>
-                      </span>
-                    </td>
-                    <td className="muted">{seatRu(p.seat)}</td>
-                    <td>
-                      <BdAmount n={p.balance} />
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="muted">{seatRu(p.seat)}</td>
+                      <td>
+                        <BdAmount n={p.balance} />
+                      </td>
+                      <td
+                        className="faction-balances-self-cell"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {isMe ? (
+                          selfList?.onAuction ? (
+                            <span className="xfer-pill is-sell">на аукционе</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn faction-balances-self-btn"
+                              disabled={selfBusy}
+                              title={
+                                selfList?.contract
+                                  ? "Контракт блокирует самовыставление"
+                                  : selfList?.enoughBalance
+                                    ? "Выставить себя на аукцион"
+                                    : "Нужен личный B$ ≥ рыночной стоимости"
+                              }
+                              onClick={() => void selfListToAuction()}
+                            >
+                              На аукцион
+                            </button>
+                          )
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {!filteredPlayers.length ? (
                   <tr>
-                    <td colSpan={4} className="muted">
+                    <td colSpan={5} className="muted">
                       Никого не найдено.
                     </td>
                   </tr>
@@ -845,6 +961,106 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
                 Нет личных движений с {minLabel} (ЗП, контракт, аукцион, взнос).
               </p>
             )}
+          </div>
+        </DraggableModal>
+      ) : null}
+
+      {contractBlockOpen && selfList?.contract ? (
+        <DraggableModal
+          open
+          closeOnBackdrop
+          onClose={() => setContractBlockOpen(false)}
+        >
+          <header
+            className="profile-match-modal-head"
+            data-drag-handle
+            title="Перетащить окно"
+          >
+            <div>
+              <h2 className="profile-mail-modal-title">Контракт активен</h2>
+              <p className="muted">Самовыставление на аукцион недоступно</p>
+            </div>
+            <button
+              type="button"
+              className="profile-match-modal-close"
+              onClick={() => setContractBlockOpen(false)}
+            >
+              ×
+            </button>
+          </header>
+          <div className="profile-match-modal-body">
+            <p>
+              У вас контракт с фракцией{" "}
+              <strong>«{selfList.contract.factionName}»</strong> до{" "}
+              <strong>{fmtDate(selfList.contract.endsAt)}</strong>.
+            </p>
+            <p className="muted">
+              Пока контракт жив, себя на аукцион выставить нельзя.
+            </p>
+            <div className="clan-invite-row" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setContractBlockOpen(false)}
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </DraggableModal>
+      ) : null}
+
+      {balanceBlockOpen && selfList ? (
+        <DraggableModal
+          open
+          closeOnBackdrop
+          onClose={() => setBalanceBlockOpen(false)}
+        >
+          <header
+            className="profile-match-modal-head"
+            data-drag-handle
+            title="Перетащить окно"
+          >
+            <div>
+              <h2 className="profile-mail-modal-title">Мало B$ на кошельке</h2>
+              <p className="muted">Нужна рыночная стоимость</p>
+            </div>
+            <button
+              type="button"
+              className="profile-match-modal-close"
+              onClick={() => setBalanceBlockOpen(false)}
+            >
+              ×
+            </button>
+          </header>
+          <div className="profile-match-modal-body">
+            <p>
+              Чтобы выставить себя на аукцион, нужно не меньше{" "}
+              <strong>
+                <BdAmount n={selfList.marketBd} />
+              </strong>
+              . Сейчас у вас{" "}
+              <strong>
+                <BdAmount n={selfList.personalBd} />
+              </strong>
+              .
+            </p>
+            <p className="muted">
+              Не хватает{" "}
+              {Math.max(0, selfList.marketBd - selfList.personalBd).toLocaleString(
+                "ru-RU",
+              )}{" "}
+              B$. Кнопка всегда на месте — копите и жмите снова.
+            </p>
+            <div className="clan-invite-row" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setBalanceBlockOpen(false)}
+              >
+                Понятно
+              </button>
+            </div>
           </div>
         </DraggableModal>
       ) : null}

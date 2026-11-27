@@ -106,6 +106,7 @@ export function FactionHrPanel({
   const [nickFilter, setNickFilter] = useState("");
   const nickKey = nickFilter.trim().toLowerCase();
   const [contractBlockOpen, setContractBlockOpen] = useState(false);
+  const [balanceBlockOpen, setBalanceBlockOpen] = useState(false);
   const [selfBusy, setSelfBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -133,12 +134,15 @@ export function FactionHrPanel({
 
   async function selfListToAuction() {
     const sl = data?.selfList;
-    if (!sl) return;
+    if (!sl || sl.onAuction) return;
     if (sl.contract) {
       setContractBlockOpen(true);
       return;
     }
-    if (!sl.enoughBalance || sl.onAuction) return;
+    if (!sl.enoughBalance) {
+      setBalanceBlockOpen(true);
+      return;
+    }
     const ok = window.confirm(
       `Выставить себя на аукцион?\nРыночная стоимость / мин. ставка: ${sl.marketBd.toLocaleString("ru-RU")} B$.\nТы остаёшься во фракции, пока кого-то не купят. При покупке другой фракцией тебе 20% победной ставки на личный B$. Свою фракцию тоже могут выкупить.`,
     );
@@ -312,9 +316,6 @@ export function FactionHrPanel({
                   const isMe = Boolean(
                     selfList?.meUserId && selfList.meUserId === m.userId,
                   );
-                  const showSelfBtn =
-                    isMe &&
-                    Boolean(selfList?.onAuction || selfList?.enoughBalance);
                   return (
                     <tr key={m.userId}>
                       <td>
@@ -369,7 +370,7 @@ export function FactionHrPanel({
                               </button>
                             )
                           ) : null}
-                          {showSelfBtn ? (
+                          {isMe ? (
                             selfList?.onAuction ? (
                               <span className="xfer-pill is-sell">на аукционе</span>
                             ) : (
@@ -654,6 +655,62 @@ export function FactionHrPanel({
                 type="button"
                 className="btn primary"
                 onClick={() => setContractBlockOpen(false)}
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </DraggableModal>
+      ) : null}
+
+      {balanceBlockOpen && selfList ? (
+        <DraggableModal
+          open
+          closeOnBackdrop
+          onClose={() => setBalanceBlockOpen(false)}
+        >
+          <header
+            className="profile-match-modal-head"
+            data-drag-handle
+            title="Перетащить окно"
+          >
+            <div>
+              <h2 className="profile-mail-modal-title">Мало B$ на кошельке</h2>
+              <p className="muted">Нужна рыночная стоимость</p>
+            </div>
+            <button
+              type="button"
+              className="profile-match-modal-close"
+              onClick={() => setBalanceBlockOpen(false)}
+            >
+              ×
+            </button>
+          </header>
+          <div className="profile-match-modal-body">
+            <p>
+              Чтобы выставить себя на аукцион, на личном балансе нужно не меньше
+              рыночной стоимости:{" "}
+              <strong>
+                <BdAmount n={selfList.marketBd} />
+              </strong>
+              . Сейчас у вас{" "}
+              <strong>
+                <BdAmount n={selfList.personalBd} />
+              </strong>
+              .
+            </p>
+            <p className="muted">
+              Не хватает{" "}
+              {(
+                Math.max(0, selfList.marketBd - selfList.personalBd)
+              ).toLocaleString("ru-RU")}{" "}
+              B$. Копите гриндом / ЗП / долями — кнопка всегда на месте.
+            </p>
+            <div className="clan-invite-row" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setBalanceBlockOpen(false)}
               >
                 Понятно
               </button>

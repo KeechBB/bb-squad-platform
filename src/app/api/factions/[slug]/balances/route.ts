@@ -9,6 +9,7 @@ import {
   listBalancePlayers,
   playerPersonalDays,
 } from "@/lib/factionBalances";
+import { getSelfListStatus } from "@/lib/factionAuction";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -85,15 +86,17 @@ export async function GET(req: Request, ctx: Ctx) {
     });
   }
 
-  const [factions, players] = await Promise.all([
+  const [factions, players, selfList] = await Promise.all([
     listBalanceFactions(),
     listBalancePlayers(),
+    getSelfListStatus(loaded.me?.id ?? null),
   ]);
 
   return NextResponse.json({
     minYmd: BALANCES_DAY_MIN_YMD,
     factions,
     players,
+    selfList,
     totals: {
       factionTreasury: factions.reduce((s, f) => s + f.balance, 0),
       playerPersonal: players.reduce((s, p) => s + p.balance, 0),

@@ -709,6 +709,79 @@ export async function listAuctionBoard(opts?: { factionId?: string }) {
   };
 }
 
+/** Статус кнопки «На аукцион» для текущего игрока (балансы / HR). */
+export async function getSelfListStatus(userId: string | null): Promise<{
+  meUserId: string;
+  factionId: string;
+  factionSlug: string;
+  factionName: string;
+  personalBd: number;
+  marketBd: number;
+  enoughBalance: boolean;
+  onAuction: boolean;
+  lotId: string | null;
+  lotKind: string | null;
+  contract: { factionName: string; endsAt: string } | null;
+} | null> {
+  if (!userId) return null;
+  const { estimatePlayerPrice } = await import("@/lib/blueberryDollar");
+  const { activeContractForUser } = await import("@/lib/factionHr");
+  const member = await prisma.factionMember.findUnique({
+    where: { userId },
+    select: {
+      factionId: true,
+      faction: { select: { id: true, name: true, slug: true } },
+      user: { select: { blueberryBalance: true } },
+    },
+  });
+  if (!member) return null;
+
+  const [openLot, contract, grindRows] = await Promise.all([
+    prisma.factionAuctionLot.findFirst({
+      where: { userId, status: "OPEN" },
+      select: { id: true, lotKind: true },
+    }),
+    activeContractForUser(userId),
+    prisma.factionLedgerEntry.groupBy({
+      by: ["userId"],
+      where: { userId, kind: "grind", amount: { gt: 0 } },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const grindBroughtBd = Math.max(0, Math.round(grindRows[0]?._sum.amount || 0));
+  const marketBd = estimatePlayerPrice({ grindBroughtBd });
+  const personalBd = Math.max(0, member.user.blueberryBalance || 0);
+  let contractPayload: { factionName: string; endsAt: string } | null = null;
+  if (contract) {
+    const fac =
+      contract.factionId === member.factionId
+        ? member.faction
+        : await prisma.faction.findUnique({
+            where: { id: contract.factionId },
+            select: { name: true },
+          });
+    contractPayload = {
+      factionName: fac?.name || "фракция",
+      endsAt: contract.endsAt.toISOString(),
+    };
+  }
+
+  return {
+    meUserId: userId,
+    factionId: member.factionId,
+    factionSlug: member.faction.slug,
+    factionName: member.faction.name,
+    personalBd,
+    marketBd,
+    enoughBalance: personalBd >= marketBd && marketBd > 0,
+    onAuction: Boolean(openLot),
+    lotId: openLot?.id || null,
+    lotKind: openLot?.lotKind || null,
+    contract: contractPayload,
+  };
+}
+
 /**
  * Игрок сам выставляется на аукцион, оставаясь во фракции до покупки.
  * Нужен личный B$ ≥ рыночной стоимости; активный контракт блокирует.
@@ -716,7 +789,7 @@ export async function listAuctionBoard(opts?: { factionId?: string }) {
 export async function openSelfListAuction(opts: {
   userId: string;
   factionId: string;
-}): Promise<
+}): Promise<{
   | {
       ok: true;
       lotId: string;

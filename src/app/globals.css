@@ -30327,6 +30327,16 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   align-items: center;
   gap: 0.45rem;
 }
+.faction-balances-self-cell {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  vertical-align: middle;
+}
+.faction-balances-self-btn {
+  font-size: 0.82rem;
+  padding: 0.28rem 0.55rem;
+}
 .faction-balances-modal-title {
   display: flex;
   align-items: center;
