@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { FactionView } from "@/lib/factions";
-import { factionPath } from "@/lib/factions";
 import { factionMgmtBgUrl } from "@/lib/factionMgmtBg";
 import { CanvasScaleStage } from "@/components/CanvasScaleStage";
 import {
@@ -47,7 +46,7 @@ export function FactionManagementClient({
   const [raceKey, setRaceKey] = useState(1);
   const [nightBetsKey, setNightBetsKey] = useState(0);
   const [deniedOpen, setDeniedOpen] = useState(!isMember);
-  const backHref = factionPath(view.slug);
+  const backHref = `/factions/${encodeURIComponent(view.slug)}`;
   const bgUrl = useMemo(() => factionMgmtBgUrl(view.slug), [view.slug]);
 
   useEffect(() => {
