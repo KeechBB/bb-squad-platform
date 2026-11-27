@@ -37,3 +37,17 @@ export function factionUiColor(
 ): string {
   return factionCanonColor(name, slug) || fallback;
 }
+
+/** Имя фракции из подписи письма «Штаб · Табор» / просто «Табор». */
+export function factionNameFromMailSender(label: string): string {
+  const raw = String(label || "").trim();
+  const m = /^штаб\s*[·•—\-–]\s*(.+)$/i.exec(raw);
+  if (m?.[1]) return m[1].trim();
+  return raw;
+}
+
+/** Цвет письма штаба фракции по senderLabel. */
+export function factionMailAccent(senderLabel: string): string | null {
+  const name = factionNameFromMailSender(senderLabel);
+  return factionCanonColor(name);
+}

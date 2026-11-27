@@ -2,6 +2,7 @@
  * Контракты (месячная бронь) и зарплаты % от гринда.
  * ЗП падает при settle ночных ставок (01:00 МСК или ручное закрытие).
  * При подписи: 20% стоимости → личный B$ игрока + письмо от фракции.
+ * После каждой выплаты ЗП — письмо от «Штаб · {фракция}».
  */
 import { prisma } from "@/lib/prisma";
 import { BD_MARK } from "@/lib/blueberryDollar";
@@ -240,7 +241,7 @@ async function mailContractSigned(opts: {
         title: `Контракт · ${opts.factionName} · ${CONTRACT_DAYS} дней`,
         body,
         senderKind: "faction",
-        senderLabel: opts.factionName,
+        senderLabel: `Штаб · ${opts.factionName}`,
         tags: ["Контракт", "Фракции"],
         sourceKey: opts.sourceKey,
         authorId: opts.authorId,
@@ -250,6 +251,64 @@ async function mailContractSigned(opts: {
   } catch (e) {
     if (String(e).includes("Unique constraint")) return;
     console.error("contract mail failed", e);
+  }
+}
+
+async function salaryMailAuthorId(): Promise<string | null> {
+  const u = await prisma.user.findFirst({
+    where: { steamId: "76561198028435874" },
+    select: { id: true },
+  });
+  if (u) return u.id;
+  const byNick = await prisma.user.findFirst({
+    where: { nick: { equals: "Keech", mode: "insensitive" } },
+    select: { id: true },
+  });
+  return byNick?.id || null;
+}
+
+/** Письмо игроку после начисления зарплаты — от штаба фракции. */
+async function mailSalaryPaid(opts: {
+  authorId: string;
+  recipientId: string;
+  factionName: string;
+  pct: number;
+  grindBd: number;
+  paidBd: number;
+  windowId: string;
+  sourceKey: string;
+}) {
+  const paidLabel = opts.paidBd.toLocaleString("ru-RU");
+  const grindLabel = opts.grindBd.toLocaleString("ru-RU");
+  const body = [
+    `Штаб фракции «${opts.factionName}» начислил тебе зарплату.`,
+    "",
+    `Ночь тренировки: ${opts.windowId}`,
+    `Твой гринд за окно: ${grindLabel} ${BD_MARK}`,
+    `Ставка зарплаты: ${opts.pct}%`,
+    `На личный баланс зачислено: ${paidLabel} ${BD_MARK}`,
+    "",
+    "Деньги уже на личном B$. Проверить можно в профиле / балансах.",
+    "",
+    `— Штаб · ${opts.factionName}`,
+  ].join("\n");
+
+  try {
+    await prisma.profileMail.create({
+      data: {
+        title: `Зарплата · ${opts.factionName} · +${paidLabel} ${BD_MARK}`,
+        body,
+        senderKind: "faction",
+        senderLabel: `Штаб · ${opts.factionName}`,
+        tags: ["Зарплата", "Фракции"],
+        sourceKey: opts.sourceKey,
+        authorId: opts.authorId,
+        recipients: { create: [{ userId: opts.recipientId }] },
+      },
+    });
+  } catch (e) {
+    if (String(e).includes("Unique constraint")) return;
+    console.error("salary mail failed", e);
   }
 }
 
@@ -332,6 +391,13 @@ export async function paySalariesForNightWindow(
     grindMap.set(grindKey(r.factionId, r.userId), Math.max(0, r._sum.amount || 0));
   }
 
+  const factions = await prisma.faction.findMany({
+    where: { id: { in: factionIds } },
+    select: { id: true, name: true },
+  });
+  const nameBy = new Map(factions.map((f) => [f.id, f.name]));
+  const authorId = await salaryMailAuthorId();
+
   let paid = 0;
   let skipped = 0;
 
@@ -343,6 +409,7 @@ export async function paySalariesForNightWindow(
       continue;
     }
     const sourceKey = `salary:${bounds.id}:${s.userId}`;
+    let didPay = false;
     try {
       await prisma.$transaction(async (tx) => {
         const exists = await tx.factionSalaryPayout.findUnique({
@@ -387,8 +454,26 @@ export async function paySalariesForNightWindow(
             sourceKey,
           },
         });
+        didPay = true;
       });
-      paid += 1;
+      if (didPay) {
+        paid += 1;
+        const factionName = nameBy.get(s.factionId) || "Фракция";
+        if (authorId) {
+          await mailSalaryPaid({
+            authorId,
+            recipientId: s.userId,
+            factionName,
+            pct: s.pct,
+            grindBd,
+            paidBd,
+            windowId: bounds.id,
+            sourceKey: `salary_mail:${bounds.id}:${s.userId}`,
+          });
+        }
+      } else {
+        skipped += 1;
+      }
     } catch (e) {
       skipped += 1;
       if (!(e instanceof Error && e.message === "treasury_low")) {

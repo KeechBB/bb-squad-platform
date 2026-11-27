@@ -1,11 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { createPortal } from "react-dom";
 import { ListPager } from "@/components/ListPager";
 import { MailTags } from "@/components/MailTags";
 import { CwLetterReady } from "@/components/CwLetterReady";
 import { MailBody } from "@/components/MailBody";
+import { factionMailAccent } from "@/lib/factionColors";
 
 type Letter = {
   id: string;
@@ -133,9 +141,18 @@ export function ProfileMailBox() {
               onClick={() => void closeReader()}
             />
             <div
-              className="profile-match-modal-panel profile-mail-reader-panel"
+              className={`profile-match-modal-panel profile-mail-reader-panel${
+                open.senderKind === "faction" ? " is-faction-mail" : ""
+              }`}
               role="dialog"
               aria-modal="true"
+              style={
+                open.senderKind === "faction" && factionMailAccent(open.senderLabel)
+                  ? ({
+                      ["--mail-faction" as string]: factionMailAccent(open.senderLabel)!,
+                    } as CSSProperties)
+                  : undefined
+              }
             >
               <header className="profile-match-modal-head">
                 <div>
@@ -147,8 +164,16 @@ export function ProfileMailBox() {
                           ? " is-dev"
                           : open.senderKind === "sri"
                             ? " is-sri"
-                            : ""
+                            : open.senderKind === "faction"
+                              ? " is-faction"
+                              : ""
                     }`}
+                    style={
+                      open.senderKind === "faction" &&
+                      factionMailAccent(open.senderLabel)
+                        ? { color: factionMailAccent(open.senderLabel)! }
+                        : undefined
+                    }
                   >
                     от {open.senderLabel}
                   </p>
@@ -241,12 +266,22 @@ export function ProfileMailBox() {
       </div>
       <div className="profile-mail-list" ref={listRef}>
         {slice.length ? (
-          slice.map((letter) => (
+          slice.map((letter) => {
+            const factionAccent =
+              letter.senderKind === "faction"
+                ? factionMailAccent(letter.senderLabel)
+                : null;
+            return (
             <div
               key={letter.id}
               className={`profile-mail-row${letter.read ? "" : " is-unread"}${
                 letter.senderKind === "transfer" ? " is-transfer" : ""
-              }`}
+              }${letter.senderKind === "faction" ? " is-faction" : ""}`}
+              style={
+                factionAccent
+                  ? ({ ["--mail-faction" as string]: factionAccent } as CSSProperties)
+                  : undefined
+              }
             >
               <button
                 type="button"
@@ -263,8 +298,11 @@ export function ProfileMailBox() {
                           ? " is-dev"
                           : letter.senderKind === "sri"
                             ? " is-sri"
-                            : ""
+                            : letter.senderKind === "faction"
+                              ? " is-faction"
+                              : ""
                     }`}
+                    style={factionAccent ? { color: factionAccent } : undefined}
                   >
                     от {letter.senderLabel}
                   </span>
@@ -272,7 +310,8 @@ export function ProfileMailBox() {
                 </span>
               </button>
             </div>
-          ))
+            );
+          })
         ) : (
           <p className="profile-mail-empty">Писем нет</p>
         )}
