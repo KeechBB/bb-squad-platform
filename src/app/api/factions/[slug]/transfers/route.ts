@@ -144,11 +144,22 @@ export async function GET(_req: Request, ctx: Ctx) {
     offerUsers.map((u) => [u.id, u.nick || u.steamName || "—"]),
   );
 
-  function dealTypeRu(t: string) {
-    if (t === "SWAP_CASH") return "Игрок + доплата";
-    if (t === "SWAP") return "Обмен";
-    if (t === "BUY") return "Покупка";
-    return t;
+  /**
+   * ТИП относительно своей фракции (путь листингового игрока: продавец → покупатель):
+   * ушёл от нас → Продажа; пришёл к нам → Покупка (BUY / SWAP / SWAP_CASH «Игрок + доплата»).
+   */
+  function dealTypeRuFor(
+    o: (typeof allDealOffers)[number],
+  ): string {
+    const leftUs = o.listing.faction.id === factionId;
+    const joinedUs = o.fromFaction.id === factionId;
+    if (joinedUs) return "Покупка";
+    if (leftUs) return "Продажа";
+    // Чужой рынок (не наша сторона): fallback по типу офера.
+    if (o.type === "SWAP_CASH") return "Игрок + доплата";
+    if (o.type === "SWAP") return "Обмен";
+    if (o.type === "BUY") return "Покупка";
+    return o.type;
   }
   function dealSideFor(o: (typeof allPendingOffers)[number]): "in" | "out" | "open" {
     if (o.listing.faction.id === factionId) return "in";
@@ -172,7 +183,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       status: o.status,
       statusLabel: dealStatusRu(o.status, side),
       type: o.type,
-      typeLabel: dealTypeRu(o.type),
+      typeLabel: dealTypeRuFor(o),
       cashAmount: o.cashAmount,
       askPrice: o.listing.askPrice,
       message: o.message,
