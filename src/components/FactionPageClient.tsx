@@ -422,8 +422,8 @@ export function FactionPageClient({
   const base = `/api/factions/${encodeURIComponent(view.slug)}`;
   const canPlace = view.keech || view.canManage;
   const memberView = !view.keech && !view.canManage;
-  /** Пока только Keech: остальным — заглушка «в разработке». */
-  const canOpenMgmt = Boolean(view.keech);
+  /** Менеджмент: любой участник фракции (или Keech). Чужие — модалка. */
+  const canOpenMgmt = Boolean(view.keech || view.mySeat);
 
   useEffect(() => {
     const stored = readStoredFactionTab(view.slug);
@@ -1071,7 +1071,8 @@ export function FactionPageClient({
               <div>
                 <h3 id="faction-mgmt-stub-title">Менеджмент</h3>
                 <p className="profile-match-modal-sub muted">
-                  Раздел в разработке. Скоро откроем для фракций.
+                  Раздел только для участников этой фракции. Вступи в состав —
+                  откроется рабочий стол.
                 </p>
               </div>
               <button

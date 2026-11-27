@@ -59,7 +59,13 @@ function writeDraft(slug: string, seasonId: string, draft: DraftMap) {
   }
 }
 
-export function FactionSeasonsPanel({ slug }: { slug: string }) {
+export function FactionSeasonsPanel({
+  slug,
+  canManage = false,
+}: {
+  slug: string;
+  canManage?: boolean;
+}) {
   const current = useMemo(() => getCurrentSeason(), []);
   const next = useMemo(() => getNextSeason(), []);
   const today = useMemo(() => mskTodayYmd(), []);
@@ -138,6 +144,7 @@ export function FactionSeasonsPanel({ slug }: { slug: string }) {
 
   const filledCount = SEASON_AUCTION_TIERS.filter((t) => draft[t.tier]).length;
   const confirmEnabled =
+    canManage &&
     transferDay &&
     Boolean(current?.endAuctionEnabled) &&
     filledCount === SEASON_AUCTION_TIERS.length;
@@ -180,13 +187,15 @@ export function FactionSeasonsPanel({ slug }: { slug: string }) {
     });
   }
 
-  const confirmHint = !current?.endAuctionEnabled
-    ? "В этом сезоне межсезонный аукцион пропускаем — кнопка будет доступна с конца зимы."
-    : !transferDay
-      ? `Кнопка откроется только ${formatYmdRu(current.endsOn)} (последний день сезона, МСК).`
-      : filledCount < SEASON_AUCTION_TIERS.length
-        ? `Выбери игрока в каждый тир (${filledCount}/${SEASON_AUCTION_TIERS.length}).`
-        : "Можно подтвердить выставление.";
+  const confirmHint = !canManage
+    ? "Подтверждение выставления — только глава или зам. Черновик тиров можно готовить."
+    : !current?.endAuctionEnabled
+      ? "В этом сезоне межсезонный аукцион пропускаем — кнопка будет доступна с конца зимы."
+      : !transferDay
+        ? `Кнопка откроется только ${formatYmdRu(current.endsOn)} (последний день сезона, МСК).`
+        : filledCount < SEASON_AUCTION_TIERS.length
+          ? `Выбери игрока в каждый тир (${filledCount}/${SEASON_AUCTION_TIERS.length}).`
+          : "Можно подтвердить выставление.";
 
   return (
     <div className="faction-seasons faction-guide">

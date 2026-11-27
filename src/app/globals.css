@@ -29538,6 +29538,12 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   font-weight: 800;
   letter-spacing: 0.03em;
 }
+.faction-mgmt-member-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  max-width: 52rem;
+}
 .faction-mgmt-main-body {
   flex: 1 1 auto;
   min-height: 0;

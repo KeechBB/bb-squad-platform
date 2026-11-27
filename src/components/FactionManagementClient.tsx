@@ -64,20 +64,18 @@ const NAV_BUTTONS: NavBtn[] = [
 export function FactionManagementClient({
   initial,
   isMember,
-  mgmtUnlocked = false,
 }: {
   initial: FactionView;
   isMember: boolean;
-  /** Пока true только у Keech — полный UI; иначе заглушка. */
-  mgmtUnlocked?: boolean;
 }) {
   const [view] = useState(initial);
   const [panel, setPanel] = useState<MgmtPanel>("race");
   const [raceKey, setRaceKey] = useState(1);
   const [nightBetsKey, setNightBetsKey] = useState(0);
-  const [deniedOpen, setDeniedOpen] = useState(!isMember && mgmtUnlocked);
+  const [deniedOpen, setDeniedOpen] = useState(!isMember);
   const backHref = `/factions/${encodeURIComponent(view.slug)}`;
   const bgUrl = useMemo(() => factionMgmtBgUrl(view.slug), [view.slug]);
+  const isStaff = Boolean(view.canManage || view.keech);
 
   useEffect(() => {
     if (!bgUrl) return;
@@ -95,20 +93,6 @@ export function FactionManagementClient({
     setPanel(next);
     if (next === "race") setRaceKey((n) => n + 1);
     if (next === "nightbets") setNightBetsKey((n) => n + 1);
-  }
-
-  if (!mgmtUnlocked) {
-    return (
-      <main className="faction-mgmt-denied-page">
-        <div className="faction-mgmt-denied-fallback faction-mgmt-stub">
-          <h1>Менеджмент</h1>
-          <p className="muted">В разработке. Скоро откроем для фракций.</p>
-          <Link href={backHref} className="btn primary">
-            Назад к фракции
-          </Link>
-        </div>
-      </main>
-    );
   }
 
   if (!isMember) {
@@ -324,6 +308,13 @@ export function FactionManagementClient({
             >
               <div className="faction-mgmt-main-head">
                 <h2>{activeLabel}</h2>
+                {!isStaff ? (
+                  <p className="muted faction-mgmt-member-hint">
+                    Ты участник: можно смотреть все разделы и ставить с{" "}
+                    <strong>личного B$</strong> в «Ставки фракций». Казна,
+                    контракты, трансферы, аукцион и ЗП — только у главы и замов.
+                  </p>
+                ) : null}
               </div>
               <div className="faction-mgmt-main-body">
                 {panel === "race" ? (
@@ -362,7 +353,10 @@ export function FactionManagementClient({
                   />
                 ) : null}
                 {panel === "seasons" ? (
-                  <FactionSeasonsPanel slug={view.slug} />
+                  <FactionSeasonsPanel
+                    slug={view.slug}
+                    canManage={view.canManage || view.keech}
+                  />
                 ) : null}
                 {panel === "balances" ? (
                   <FactionBalancesPanel slug={view.slug} />

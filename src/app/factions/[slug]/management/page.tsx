@@ -14,15 +14,12 @@ export default async function FactionManagementPage({ params }: Props) {
   );
   if (loaded.error || !loaded.view) notFound();
 
-  // Пока полный UI только у Keech; остальным — заглушка «в разработке».
-  const mgmtUnlocked = Boolean(loaded.view.keech);
   const isMember = Boolean(loaded.view.keech || loaded.view.mySeat);
 
   return (
     <FactionManagementClient
       initial={loaded.view}
       isMember={isMember}
-      mgmtUnlocked={mgmtUnlocked}
     />
   );
 }
