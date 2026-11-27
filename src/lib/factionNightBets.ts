@@ -817,9 +817,13 @@ export type NightFactionGrindDay = {
   leaderAmount: number;
 };
 
+/** С этой даты (МСК training-day) показываем «Историю по дням» — раньше шум/тест. */
+export const NIGHT_GRIND_DAYHIST_MIN_YMD = "2026-11-24";
+
 /**
  * История по дням: сколько каждая фракция нагриндила за ночное окно (21:00–01:00).
  * Берём последние N training-day, даже если окно ставок ещё не создано.
+ * Дни до NIGHT_GRIND_DAYHIST_MIN_YMD не отдаём.
  */
 export async function nightFactionGrindDayHistory(opts?: {
   days?: number;
@@ -833,6 +837,7 @@ export async function nightFactionGrindDayHistory(opts?: {
   const ymds: string[] = [];
   let cur: string | null = startId;
   for (let i = 0; i < n && cur; i += 1) {
+    if (cur < NIGHT_GRIND_DAYHIST_MIN_YMD) break;
     ymds.push(cur);
     cur = shiftYmd(cur, -1);
   }
