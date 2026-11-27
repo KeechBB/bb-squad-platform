@@ -435,6 +435,13 @@ function offerTypeLabel(t: string) {
   return t;
 }
 
+/** Цвет ТИП: покупка / продажа относительно своей фракции. */
+function dealTypePillClass(label: string) {
+  if (label === "Продажа") return "xfer-pill is-sell";
+  if (label === "Покупка" || label.startsWith("Покупка")) return "xfer-pill is-buy";
+  return "xfer-pill is-done";
+}
+
 function StatsBlock({ stats }: { stats: PlayerStats | null }) {
   if (!stats) {
     return <p className="muted">Пока мало данных по TR1–TR5 за последние дни.</p>;
@@ -1345,7 +1352,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
                       <td>
                         <span className={`xfer-pill is-${d.side}`}>{d.statusLabel}</span>
                       </td>
-                      <td>{d.typeLabel}</td>
+                      <td>
+                        <span className={dealTypePillClass(d.typeLabel)}>{d.typeLabel}</span>
+                      </td>
                       <td>
                         <XferNick>{d.playerNick}</XferNick>
                         {d.swapNick ? (
@@ -1424,7 +1433,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   {closedVisible.map((d) => (
                     <tr key={d.id}>
                       <td>
-                        <span className="xfer-pill is-done">{d.typeLabel}</span>
+                        <span className={dealTypePillClass(d.typeLabel)}>{d.typeLabel}</span>
                       </td>
                       <td>
                         <XferNick>{d.playerNick}</XferNick>
