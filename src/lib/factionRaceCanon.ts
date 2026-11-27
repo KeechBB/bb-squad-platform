@@ -15,6 +15,11 @@ export const RACE_BASE_GOAL = 800_000;
 export const RACE_GOAL_RESET_AFTER_WINDOW = "2026-11-21";
 export const RACE_GOAL_UP = 1.05;
 export const RACE_GOAL_DOWN = 0.95;
+/**
+ * Штраф гонки → аукцион: нельзя выставить игрока с явкой
+ * меньше N тренировочных дней за последние 7 суток.
+ */
+export const RACE_PENALTY_MIN_TRAIN_DAYS_WEEK = 2;
 
 export const RACE_FACTION_NAMES = ["Орда", "Улей", "Сброд", "Стая", "Табор"] as const;
 

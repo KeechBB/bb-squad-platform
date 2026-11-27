@@ -73,9 +73,22 @@ export async function POST(req: Request, ctx: Ctx) {
     );
   }
   const userId = String(body.userId || "");
-  if (!penalty.candidates.some((c) => c.userId === userId)) {
+  const cand = penalty.candidates.find((c) => c.userId === userId);
+  if (!cand) {
     return NextResponse.json(
       { error: "Игрок не в списке кандидатов" },
+      { status: 400 },
+    );
+  }
+  if (!cand.auctionAllowed) {
+    return NextResponse.json(
+      {
+        error: "low_attendance",
+        message:
+          "Этого нельзя — у него онлайн ниже. На аукцион по штрафу гонки можно только игрока с явкой не меньше 2 тренировок за неделю.",
+        trainDays7: cand.trainDays7,
+        minTrainDaysWeek: penalty.minTrainDaysWeek,
+      },
       { status: 400 },
     );
   }

@@ -835,11 +835,14 @@ type RacePenalty = {
   graceEndsAt: string | null;
   amount: number;
   goal: number;
+  minTrainDaysWeek?: number;
   candidates: {
     userId: string;
     nick: string;
     playerValue: number;
     grindBroughtBd: number;
+    trainDays7?: number;
+    auctionAllowed?: boolean;
   }[];
 };
 
@@ -873,6 +876,7 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
   const [weeks, setWeeks] = useState<RaceWeek[]>([]);
   const [pickUserId, setPickUserId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [lowOnlineModal, setLowOnlineModal] = useState<string | null>(null);
   const [weekOpen, setWeekOpen] = useState<string | null>(null);
   const [weekSort, setWeekSort] = useState<{ key: string; dir: "asc" | "desc" }>({
     key: "date",
@@ -946,6 +950,13 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
 
   async function nominate() {
     if (!pickUserId || !canNominate) return;
+    const cand = penalty?.candidates.find((c) => c.userId === pickUserId);
+    if (cand && cand.auctionAllowed === false) {
+      setLowOnlineModal(
+        "Этого нельзя — у него онлайн ниже. На аукцион по штрафу гонки можно только игрока с явкой не меньше 2 тренировок за неделю.",
+      );
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -954,8 +965,18 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ op: "nominate_penalty", userId: pickUserId }),
       });
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+      };
       if (!res.ok) {
+        if (json.error === "low_attendance") {
+          setLowOnlineModal(
+            json.message ||
+              "Этого нельзя — у него онлайн ниже. На аукцион по штрафу гонки можно только игрока с явкой не меньше 2 тренировок за неделю.",
+          );
+          return;
+        }
         setError(json.error || "Не удалось выставить");
         return;
       }
@@ -1060,11 +1081,16 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
             <p className="muted">Выбор доступен только штабу фракции.</p>
           ) : (
             <>
+              <p className="muted">
+                На аукцион — только с явкой ≥{penalty.minTrainDaysWeek ?? 2} TR за
+                неделю. У кого меньше — выбрать нельзя.
+              </p>
               <div className="xfer-table-wrap">
                 <table className="xfer-table">
                   <thead>
                     <tr>
                       <th>Игрок</th>
+                      <th>Явка 7д</th>
                       <th>Рынок</th>
                       <th>Гринд</th>
                       <th />
@@ -1079,6 +1105,9 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
                         <td>
                           <strong className="xfer-nick">{c.nick}</strong>
                         </td>
+                        <td className={c.auctionAllowed === false ? "xfer-err" : "muted"}>
+                          {c.trainDays7 ?? 0}/7
+                        </td>
                         <td>
                           <BdAmount n={c.playerValue} />
                         </td>
@@ -1090,7 +1119,15 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
                             type="button"
                             className={`btn${pickUserId === c.userId ? " primary" : ""}`}
                             disabled={busy}
-                            onClick={() => setPickUserId(c.userId)}
+                            onClick={() => {
+                              if (c.auctionAllowed === false) {
+                                setLowOnlineModal(
+                                  "Этого нельзя — у него онлайн ниже. На аукцион по штрафу гонки можно только игрока с явкой не меньше 2 тренировок за неделю.",
+                                );
+                                return;
+                              }
+                              setPickUserId(c.userId);
+                            }}
                           >
                             {pickUserId === c.userId ? "Выбран" : "Выбрать"}
                           </button>
@@ -1099,7 +1136,7 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
                     ))}
                     {!penalty.candidates.length ? (
                       <tr>
-                        <td colSpan={4} className="muted">
+                        <td colSpan={5} className="muted">
                           Нет подходящих кандидатов (только обычные участники).
                         </td>
                       </tr>
@@ -1247,6 +1284,43 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
         ) : null}
       </section>
 
+      {lowOnlineModal ? (
+        <div
+          className="profile-match-modal"
+          role="presentation"
+          onClick={() => setLowOnlineModal(null)}
+        >
+          <div className="profile-match-modal-backdrop" />
+          <div
+            className="profile-match-modal-panel"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="profile-match-modal-head">
+              <h3>Нельзя выставить</h3>
+              <button
+                type="button"
+                className="profile-match-modal-close"
+                onClick={() => setLowOnlineModal(null)}
+              >
+                ×
+              </button>
+            </header>
+            <div className="profile-match-modal-body">
+              <p>{lowOnlineModal}</p>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setLowOnlineModal(null)}
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <section className="faction-race-howto" aria-label="Если норму не выполнили">
         <h4>Если норму не выполнили</h4>
         <p className="muted">
@@ -1264,7 +1338,8 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
           <li>
             Цена лота — рыночная:{" "}
             <mark className="faction-guide-hi">20 000 + весь гринд</mark> игрока.
-            Кнопка выбора — прямо в блоке штрафа на этой странице гонки.
+            Выбор — в <strong>Трансферах</strong> и здесь на Гонке. Явка &lt;2 TR/нед —
+            нельзя (модалка про онлайн).
           </li>
           <li>
             Не выбрали до конца отсрочки — система сама выставит{" "}

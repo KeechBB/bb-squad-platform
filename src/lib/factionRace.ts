@@ -2,9 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { factionUiColor } from "@/lib/factionColors";
 import { parseFactionInfo } from "@/lib/factionInfoDoc";
 import { estimatePlayerPrice } from "@/lib/blueberryDollar";
+import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 import {
   RACE_BASE_GOAL,
   RACE_EPOCH_START,
+  RACE_PENALTY_MIN_TRAIN_DAYS_WEEK,
   formatRaceWindowLabel,
   raceProgressLedgerWhere,
   raceWindowAt,
@@ -35,6 +37,10 @@ export type FactionRacePenaltyCandidate = {
   nick: string;
   playerValue: number;
   grindBroughtBd: number;
+  /** Уникальные TR-дни за 7 суток (канон TRAIN). */
+  trainDays7: number;
+  /** false → нельзя на аукцион (онлайн ниже порога). */
+  auctionAllowed: boolean;
 };
 
 export type FactionRacePenalty = {
@@ -44,8 +50,85 @@ export type FactionRacePenalty = {
   graceEndsAt: string | null;
   amount: number;
   goal: number;
+  minTrainDaysWeek: number;
   candidates: FactionRacePenaltyCandidate[];
 };
+
+/** Явка: число уникальных TR-дней за последние `days` суток. */
+export async function loadTrainDaysLastN(
+  userIds: string[],
+  days = 7,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  const uniq = [...new Set(userIds.filter(Boolean))];
+  for (const id of uniq) out.set(id, 0);
+  if (!uniq.length) return out;
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: uniq } },
+    select: { id: true, steamId: true },
+  });
+  const steamToUser = new Map<string, string>();
+  for (const u of users) {
+    const sid = String(u.steamId || "").trim();
+    if (sid) steamToUser.set(sid, u.id);
+  }
+
+  const sinceMs = Date.now() - days * 86_400_000;
+  const since = new Date(sinceMs);
+  const ymdSince = since.toISOString().slice(0, 10);
+  const [sy, sm, sd] = ymdSince.split("-").map((x) => Number(x) || 0);
+  const serverKeys = [
+    ...TRAINING_SERVER_KEYS,
+    ...TRAINING_SERVER_KEYS.map((k) => k.toLowerCase()),
+  ];
+
+  const players = await prisma.canonMatchPlayer.findMany({
+    where: {
+      OR: [
+        { userId: { in: uniq } },
+        ...(steamToUser.size
+          ? [{ steamId: { in: [...steamToUser.keys()] } }]
+          : []),
+      ],
+      match: {
+        kind: "TRAIN",
+        publishedAt: { not: null },
+        serverKey: { in: serverKeys },
+        OR: [
+          { year: { gt: sy } },
+          { year: sy, month: { gt: sm } },
+          { year: sy, month: sm, day: { gte: sd } },
+        ],
+      },
+    },
+    select: {
+      userId: true,
+      steamId: true,
+      match: { select: { year: true, month: true, day: true } },
+    },
+  });
+
+  const daysBy = new Map<string, Set<string>>();
+  for (const p of players) {
+    const sid = String(p.steamId || "").trim();
+    const uid =
+      (p.userId && out.has(p.userId) ? p.userId : null) ||
+      (sid ? steamToUser.get(sid) : null) ||
+      null;
+    if (!uid) continue;
+    const y = Number(p.match.year) || 0;
+    const mo = Number(p.match.month) || 0;
+    const d = Number(p.match.day) || 0;
+    if (y < 2020 || mo < 1 || mo > 12 || d < 1 || d > 31) continue;
+    const ymd = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    if (ymd < ymdSince) continue;
+    if (!daysBy.has(uid)) daysBy.set(uid, new Set());
+    daysBy.get(uid)!.add(ymd);
+  }
+  for (const [uid, set] of daysBy) out.set(uid, set.size);
+  return out;
+}
 
 export type FactionRaceWeekFaction = {
   factionId: string;
@@ -192,13 +275,16 @@ export async function loadRacePenaltyForFaction(
 
   const cands = await eligibleForceCandidates(factionId, row.protectedReserveIds);
   const userIds = cands.map((c) => c.userId);
-  const grind = userIds.length
-    ? await prisma.factionLedgerEntry.groupBy({
-        by: ["userId"],
-        where: { userId: { in: userIds }, kind: "grind", amount: { gt: 0 } },
-        _sum: { amount: true },
-      })
-    : [];
+  const [grind, trainDays] = await Promise.all([
+    userIds.length
+      ? prisma.factionLedgerEntry.groupBy({
+          by: ["userId"],
+          where: { userId: { in: userIds }, kind: "grind", amount: { gt: 0 } },
+          _sum: { amount: true },
+        })
+      : Promise.resolve([] as { userId: string | null; _sum: { amount: number | null } }[]),
+    loadTrainDaysLastN(userIds, 7),
+  ]);
   const grindBy = new Map(
     grind.map((g) => [g.userId!, Math.max(0, Math.round(g._sum.amount || 0))]),
   );
@@ -206,16 +292,21 @@ export async function loadRacePenaltyForFaction(
   const candidates: FactionRacePenaltyCandidate[] = cands
     .map((c) => {
       const grindBroughtBd = grindBy.get(c.userId) || 0;
+      const trainDays7 = trainDays.get(c.userId) || 0;
       return {
         userId: c.userId,
         nick: c.nick,
         grindBroughtBd,
         playerValue: estimatePlayerPrice({ grindBroughtBd }),
+        trainDays7,
+        auctionAllowed: trainDays7 >= RACE_PENALTY_MIN_TRAIN_DAYS_WEEK,
       };
     })
     .sort(
       (a, b) =>
-        b.playerValue - a.playerValue || a.nick.localeCompare(b.nick, "ru"),
+        Number(b.auctionAllowed) - Number(a.auctionAllowed) ||
+        b.playerValue - a.playerValue ||
+        a.nick.localeCompare(b.nick, "ru"),
     );
 
   return {
@@ -225,6 +316,7 @@ export async function loadRacePenaltyForFaction(
     graceEndsAt: row.graceEndsAt ? row.graceEndsAt.toISOString() : null,
     amount: row.amount,
     goal: row.goal,
+    minTrainDaysWeek: RACE_PENALTY_MIN_TRAIN_DAYS_WEEK,
     candidates,
   };
 }

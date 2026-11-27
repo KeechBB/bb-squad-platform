@@ -312,6 +312,23 @@ type Payload = {
     remainingMs: number;
     windowId: string;
   } | null;
+  racePenalty?: {
+    active: boolean;
+    resultId: string;
+    windowId: string;
+    graceEndsAt: string | null;
+    amount: number;
+    goal: number;
+    minTrainDaysWeek: number;
+    candidates: {
+      userId: string;
+      nick: string;
+      playerValue: number;
+      grindBroughtBd: number;
+      trainDays7: number;
+      auctionAllowed: boolean;
+    }[];
+  } | null;
   window: {
     isOpen: boolean;
     reason: string | null;
@@ -606,6 +623,9 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
   const [myValueLoading, setMyValueLoading] = useState(false);
   const [myValueErr, setMyValueErr] = useState("");
   const [graceNow, setGraceNow] = useState(() => Date.now());
+  const [penaltyPick, setPenaltyPick] = useState("");
+  const [penaltyBusy, setPenaltyBusy] = useState(false);
+  const [lowOnlineModal, setLowOnlineModal] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -1343,6 +1363,163 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
               {!data.board.length ? <li className="muted">Пока никого нет на доске.</li> : null}
             </ul>
           </section>
+
+          {data.racePenalty?.active ? (
+            <section className="xfer-section xfer-race-penalty">
+              <h4>Штраф гонки · выставить игрока на аукцион</h4>
+              <p className="muted">
+                Норма не набрана:{" "}
+                <mark className="faction-guide-hi">
+                  {data.racePenalty.amount.toLocaleString("ru-RU")} /{" "}
+                  {data.racePenalty.goal.toLocaleString("ru-RU")} B$
+                </mark>
+                . Выберите участника на аукцион (
+                <mark className="faction-guide-hi">20 000 + весь гринд</mark>
+                ). Явка меньше {data.racePenalty.minTrainDaysWeek} TR за неделю —
+                нельзя.
+                {graceCountdown ? (
+                  <>
+                    {" "}
+                    Отсрочка:{" "}
+                    <span className="xfer-race-grace">{graceCountdown}</span>
+                  </>
+                ) : null}
+              </p>
+              {!data.canManage ? (
+                <p className="muted">Выбор доступен только командиру или заму.</p>
+              ) : (
+                <>
+                  <div className="xfer-table-wrap">
+                    <table className="xfer-table">
+                      <thead>
+                        <tr>
+                          <th>Игрок</th>
+                          <th>Явка 7д</th>
+                          <th>Рынок</th>
+                          <th>Гринд</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.racePenalty.candidates.map((c) => (
+                          <tr
+                            key={c.userId}
+                            className={
+                              penaltyPick === c.userId ? "is-cur-season" : undefined
+                            }
+                          >
+                            <td>
+                              <strong className="xfer-nick">{c.nick}</strong>
+                            </td>
+                            <td
+                              className={
+                                c.auctionAllowed ? "muted" : "xfer-err"
+                              }
+                            >
+                              {c.trainDays7}/7
+                            </td>
+                            <td>
+                              <BdAmount n={c.playerValue} />
+                            </td>
+                            <td className="muted">
+                              <BdAmount n={c.grindBroughtBd} />
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className={`btn${
+                                  penaltyPick === c.userId ? " primary" : ""
+                                }`}
+                                disabled={penaltyBusy}
+                                onClick={() => {
+                                  if (!c.auctionAllowed) {
+                                    setLowOnlineModal(
+                                      "Этого нельзя — у него онлайн ниже. На аукцион по штрафу гонки можно только игрока с явкой не меньше 2 тренировок за неделю.",
+                                    );
+                                    return;
+                                  }
+                                  setPenaltyPick(c.userId);
+                                }}
+                              >
+                                {penaltyPick === c.userId ? "Выбран" : "Выбрать"}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {!data.racePenalty.candidates.length ? (
+                          <tr>
+                            <td colSpan={5} className="muted">
+                              Нет кандидатов (только обычные участники, не глава/зам).
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="xfer-actions" style={{ marginTop: 10 }}>
+                    <button
+                      type="button"
+                      className="btn primary"
+                      disabled={penaltyBusy || !penaltyPick}
+                      onClick={() => {
+                        void (async () => {
+                          if (!penaltyPick) return;
+                          const cand = data.racePenalty?.candidates.find(
+                            (c) => c.userId === penaltyPick,
+                          );
+                          if (cand && !cand.auctionAllowed) {
+                            setLowOnlineModal(
+                              "Этого нельзя — у него онлайн ниже. На аукцион по штрафу гонки можно только игрока с явкой не меньше 2 тренировок за неделю.",
+                            );
+                            return;
+                          }
+                          setPenaltyBusy(true);
+                          setErr(null);
+                          try {
+                            const res = await fetch(
+                              `/api/factions/${encodeURIComponent(slug)}/race`,
+                              {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  op: "nominate_penalty",
+                                  userId: penaltyPick,
+                                }),
+                              },
+                            );
+                            const json = (await res.json().catch(() => ({}))) as {
+                              error?: string;
+                              message?: string;
+                            };
+                            if (!res.ok) {
+                              if (json.error === "low_attendance") {
+                                setLowOnlineModal(
+                                  json.message ||
+                                    "Этого нельзя — у него онлайн ниже.",
+                                );
+                                return;
+                              }
+                              setErr(json.error || "Не удалось выставить");
+                              return;
+                            }
+                            setPenaltyPick("");
+                            setMsg("Игрок отправлен на аукцион");
+                            await load();
+                          } catch {
+                            setErr("Сеть недоступна");
+                          } finally {
+                            setPenaltyBusy(false);
+                          }
+                        })();
+                      }}
+                    >
+                      Отправить на аукцион
+                    </button>
+                  </div>
+                </>
+              )}
+            </section>
+          ) : null}
         </div>
       ) : null}
 
@@ -2540,6 +2717,43 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
             </div>
           ) : null}
         </DraggableModal>
+      ) : null}
+
+      {lowOnlineModal ? (
+        <div
+          className="profile-match-modal"
+          role="presentation"
+          onClick={() => setLowOnlineModal(null)}
+        >
+          <div className="profile-match-modal-backdrop" />
+          <div
+            className="profile-match-modal-panel"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="profile-match-modal-head">
+              <h3>Нельзя выставить</h3>
+              <button
+                type="button"
+                className="profile-match-modal-close"
+                onClick={() => setLowOnlineModal(null)}
+              >
+                ×
+              </button>
+            </header>
+            <div className="profile-match-modal-body">
+              <p>{lowOnlineModal}</p>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setLowOnlineModal(null)}
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
     </div>

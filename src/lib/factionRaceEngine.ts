@@ -458,7 +458,25 @@ async function executeForce(resultId: string, now: Date) {
   if (!r.graceEndsAt || now < r.graceEndsAt) return;
 
   const candidates = await eligibleForceCandidates(r.factionId, r.protectedReserveIds);
-  const victim = pickRandom(candidates);
+  // Автоштраф: сначала с явкой ≥2 TR/нед; если таких нет — любой MEMBER из пула.
+  let pool = candidates;
+  try {
+    const { loadTrainDaysLastN } = await import("@/lib/factionRace");
+    const { RACE_PENALTY_MIN_TRAIN_DAYS_WEEK } = await import(
+      "@/lib/factionRaceCanon"
+    );
+    const days = await loadTrainDaysLastN(
+      candidates.map((c) => c.userId),
+      7,
+    );
+    const ok = candidates.filter(
+      (c) => (days.get(c.userId) || 0) >= RACE_PENALTY_MIN_TRAIN_DAYS_WEEK,
+    );
+    if (ok.length) pool = ok;
+  } catch (e) {
+    console.error("race force attendance filter", e);
+  }
+  const victim = pickRandom(pool);
   if (!victim) {
     await prisma.factionRaceResult.update({
       where: { id: r.id },
