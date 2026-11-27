@@ -51,18 +51,63 @@ type SelfListInfo = {
   contract: { factionName: string; endsAt: string } | null;
 };
 
+type SalaryFaction = {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+  color: string;
+};
+
+type SalaryPlayer = {
+  userId: string;
+  nick: string;
+  seat: string;
+  salaryPct: number;
+  factionId: string;
+  factionName: string;
+  factionSlug: string;
+  factionLogoUrl: string | null;
+  factionColor: string;
+  canEdit: boolean;
+};
+
 type HrPayload = {
   canManage: boolean;
+  isKeech?: boolean;
+  myFactionId?: string;
   treasury: number;
   salaryPresets: number[];
   selfList?: SelfListInfo | null;
   members: HrMember[];
+  salaryFactions?: SalaryFaction[];
+  salaryPlayers?: SalaryPlayer[];
   contracts: HrContract[];
   payouts: HrPayout[];
   error?: string;
 };
 
 type HrTab = "contracts" | "salaries" | "history" | "players";
+type SalarySortKey = "nick" | "faction" | "seat" | "pct";
+type SortDir = "asc" | "desc";
+
+const SEAT_RANK: Record<string, number> = {
+  LEADER: 0,
+  DEPUTY: 1,
+  MEMBER: 2,
+};
+
+function seatRu(seat: string): string {
+  if (seat === "LEADER") return "глава";
+  if (seat === "DEPUTY") return "зам";
+  return "боец";
+}
+
+function cmpStr(a: string, b: string) {
+  return String(a || "").localeCompare(String(b || ""), "ru", {
+    sensitivity: "base",
+  });
+}
 
 function fmtDate(iso: string) {
   const d = new Date(iso);
@@ -105,6 +150,12 @@ export function FactionHrPanel({
   const [tab, setTab] = useState<HrTab>("contracts");
   const [nickFilter, setNickFilter] = useState("");
   const nickKey = nickFilter.trim().toLowerCase();
+  const [salaryNickFilter, setSalaryNickFilter] = useState("");
+  const [salaryFactionFilter, setSalaryFactionFilter] = useState<string>("all");
+  const [salarySort, setSalarySort] = useState<{
+    key: SalarySortKey;
+    dir: SortDir;
+  }>({ key: "pct", dir: "desc" });
   const [contractBlockOpen, setContractBlockOpen] = useState(false);
   const [balanceBlockOpen, setBalanceBlockOpen] = useState(false);
   const [selfBusy, setSelfBusy] = useState(false);
@@ -202,6 +253,47 @@ export function FactionHrPanel({
     }
   }
 
+  const salaryFactions = data?.salaryFactions || [];
+  const filteredSalaryPlayers = useMemo(() => {
+    const q = salaryNickFilter.trim().toLowerCase();
+    const rows = (data?.salaryPlayers || []).filter((p) => {
+      if (salaryFactionFilter !== "all" && p.factionId !== salaryFactionFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        p.nick.toLowerCase().includes(q) ||
+        p.factionName.toLowerCase().includes(q)
+      );
+    });
+    const dir = salarySort.dir === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      let c = 0;
+      if (salarySort.key === "nick") c = cmpStr(a.nick, b.nick);
+      else if (salarySort.key === "faction")
+        c = cmpStr(a.factionName, b.factionName) || cmpStr(a.nick, b.nick);
+      else if (salarySort.key === "seat")
+        c =
+          (SEAT_RANK[a.seat] ?? 9) - (SEAT_RANK[b.seat] ?? 9) ||
+          cmpStr(a.nick, b.nick);
+      else c = a.salaryPct - b.salaryPct || cmpStr(a.nick, b.nick);
+      return c * dir;
+    });
+  }, [
+    data?.salaryPlayers,
+    salaryNickFilter,
+    salaryFactionFilter,
+    salarySort,
+  ]);
+
+  function toggleSalarySort(key: SalarySortKey) {
+    setSalarySort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "nick" || key === "faction" ? "asc" : "desc" },
+    );
+  }
+
   const payoutsFiltered = useMemo(() => {
     const rows = data?.payouts ?? [];
     if (!nickKey) return rows;
@@ -276,6 +368,9 @@ export function FactionHrPanel({
           onClick={() => setTab("salaries")}
         >
           Зарплаты %
+          {data?.salaryPlayers?.length
+            ? ` (${data.salaryPlayers.length})`
+            : ""}
         </button>
         <button
           type="button"
@@ -440,27 +535,197 @@ export function FactionHrPanel({
       ) : null}
 
       {tab === "salaries" ? (
-        <div className="xfer-tab-body xfer-tables">
+        <div className="xfer-tab-body xfer-tables faction-hr-salaries">
           <p className="muted faction-hr-hint">
-            Пресет % от гринда игрока за ночное окно. Выплата на личный B$ в 01:00
-            МСК (или раньше, если ночь закрыли вручную). Деньги списываются с
-            казны фракции.
+            Все игроки пятёрки и Легиона. Пресет % от гринда за ночное окно →
+            личный B$ в 01:00 МСК (с казны фракции игрока). Менять % может штаб
+            своей фракции{data.isKeech ? " · Keech — любой" : ""}.
           </p>
+          <div className="faction-balances-filters">
+            <div className="xfer-nick-filter">
+              <label className="xfer-nick-filter-label" htmlFor="hr-sal-nick">
+                Поиск
+              </label>
+              <input
+                id="hr-sal-nick"
+                className="xfer-nick-filter-input"
+                type="search"
+                value={salaryNickFilter}
+                onChange={(e) => setSalaryNickFilter(e.target.value)}
+                placeholder="Ник…"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+            <div className="xfer-nick-filter">
+              <label className="xfer-nick-filter-label" htmlFor="hr-sal-faction">
+                Фракция
+              </label>
+              <select
+                id="hr-sal-faction"
+                className="xfer-nick-filter-input faction-balances-faction-select"
+                value={salaryFactionFilter}
+                onChange={(e) => setSalaryFactionFilter(e.target.value)}
+              >
+                <option value="all">Все фракции</option>
+                {salaryFactions.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div
+            className="faction-balances-faction-chips"
+            role="group"
+            aria-label="Быстрый фильтр фракции"
+          >
+            <button
+              type="button"
+              className={`faction-balances-chip${
+                salaryFactionFilter === "all" ? " is-on" : ""
+              }`}
+              onClick={() => setSalaryFactionFilter("all")}
+            >
+              Все
+            </button>
+            {salaryFactions.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                className={`faction-balances-chip${
+                  salaryFactionFilter === f.id ? " is-on" : ""
+                }`}
+                style={{ ["--fb-accent" as string]: f.color }}
+                onClick={() => setSalaryFactionFilter(f.id)}
+              >
+                <span
+                  className="faction-balances-logo"
+                  style={{
+                    width: 18,
+                    height: 18,
+                    boxShadow: `0 0 0 2px ${f.color}55`,
+                  }}
+                >
+                  {f.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={f.logoUrl} alt="" width={18} height={18} />
+                  ) : (
+                    <span style={{ color: f.color }}>{f.name.slice(0, 1)}</span>
+                  )}
+                </span>
+                {f.name}
+              </button>
+            ))}
+          </div>
           <div className="xfer-table-wrap">
-            <table className="xfer-table">
+            <table className="xfer-table faction-balances-table">
               <thead>
                 <tr>
-                  <th>Игрок</th>
-                  <th>Сейчас</th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`xfer-sort${
+                        salarySort.key === "nick" ? " is-on" : ""
+                      }`}
+                      onClick={() => toggleSalarySort("nick")}
+                    >
+                      Игрок
+                      {salarySort.key === "nick"
+                        ? salarySort.dir === "asc"
+                          ? " ↑"
+                          : " ↓"
+                        : ""}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`xfer-sort${
+                        salarySort.key === "faction" ? " is-on" : ""
+                      }`}
+                      onClick={() => toggleSalarySort("faction")}
+                    >
+                      Фракция
+                      {salarySort.key === "faction"
+                        ? salarySort.dir === "asc"
+                          ? " ↑"
+                          : " ↓"
+                        : ""}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`xfer-sort${
+                        salarySort.key === "seat" ? " is-on" : ""
+                      }`}
+                      onClick={() => toggleSalarySort("seat")}
+                    >
+                      Роль
+                      {salarySort.key === "seat"
+                        ? salarySort.dir === "asc"
+                          ? " ↑"
+                          : " ↓"
+                        : ""}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`xfer-sort${
+                        salarySort.key === "pct" ? " is-on" : ""
+                      }`}
+                      onClick={() => toggleSalarySort("pct")}
+                    >
+                      Сейчас
+                      {salarySort.key === "pct"
+                        ? salarySort.dir === "asc"
+                          ? " ↑"
+                          : " ↓"
+                        : ""}
+                    </button>
+                  </th>
                   <th>Пресет</th>
                 </tr>
               </thead>
               <tbody>
-                {data.members.map((m) => (
-                  <tr key={m.userId}>
+                {filteredSalaryPlayers.map((m) => (
+                  <tr key={`${m.factionId}:${m.userId}`}>
                     <td>
                       <strong className="xfer-nick">{m.nick}</strong>
                     </td>
+                    <td>
+                      <span className="faction-balances-player-fac">
+                        <span
+                          className="faction-balances-logo"
+                          style={{
+                            width: 28,
+                            height: 28,
+                            boxShadow: `0 0 0 2px ${m.factionColor}55`,
+                          }}
+                        >
+                          {m.factionLogoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={m.factionLogoUrl}
+                              alt=""
+                              width={28}
+                              height={28}
+                            />
+                          ) : (
+                            <span style={{ color: m.factionColor }}>
+                              {m.factionName.slice(0, 1)}
+                            </span>
+                          )}
+                        </span>
+                        <span style={{ color: m.factionColor }}>
+                          {m.factionName}
+                        </span>
+                      </span>
+                    </td>
+                    <td className="muted">{seatRu(m.seat)}</td>
                     <td>
                       {m.salaryPct > 0 ? (
                         <strong>{m.salaryPct}%</strong>
@@ -469,14 +734,20 @@ export function FactionHrPanel({
                       )}
                     </td>
                     <td>
-                      {manage ? (
+                      {m.canEdit ? (
                         <div className="faction-hr-pct-row">
                           <button
                             type="button"
-                            className={`faction-hr-pct${m.salaryPct === 0 ? " is-on" : ""}`}
+                            className={`faction-hr-pct${
+                              m.salaryPct === 0 ? " is-on" : ""
+                            }`}
                             disabled={busy}
                             onClick={() =>
-                              void run("set_salary", { userId: m.userId, pct: 0 })
+                              void run("set_salary", {
+                                userId: m.userId,
+                                factionId: m.factionId,
+                                pct: 0,
+                              })
                             }
                           >
                             0
@@ -485,11 +756,14 @@ export function FactionHrPanel({
                             <button
                               key={p}
                               type="button"
-                              className={`faction-hr-pct${m.salaryPct === p ? " is-on" : ""}`}
+                              className={`faction-hr-pct${
+                                m.salaryPct === p ? " is-on" : ""
+                              }`}
                               disabled={busy}
                               onClick={() =>
                                 void run("set_salary", {
                                   userId: m.userId,
+                                  factionId: m.factionId,
                                   pct: p,
                                 })
                               }
@@ -499,11 +773,18 @@ export function FactionHrPanel({
                           ))}
                         </div>
                       ) : (
-                        <span className="muted">только штаб</span>
+                        <span className="muted">только штаб фракции</span>
                       )}
                     </td>
                   </tr>
                 ))}
+                {!filteredSalaryPlayers.length ? (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Никого не найдено.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>

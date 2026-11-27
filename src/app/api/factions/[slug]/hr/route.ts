@@ -11,6 +11,10 @@ import {
 } from "@/lib/factionHr";
 import { prisma } from "@/lib/prisma";
 import { getSelfListStatus } from "@/lib/factionAuction";
+import {
+  listBalanceFactions,
+  listBalancePlayers,
+} from "@/lib/factionBalances";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -39,30 +43,48 @@ export async function GET(_req: Request, ctx: Ctx) {
   await expireDueContracts();
   const factionId = gate.loaded.view!.id;
   const members = gate.loaded.view!.members;
+  const isKeech = Boolean(gate.loaded.view!.keech);
 
-  const [contracts, salaries, payouts] = await Promise.all([
-    prisma.factionPlayerContract.findMany({
-      where: { factionId },
-      orderBy: [{ status: "asc" }, { endsAt: "desc" }],
-      take: 80,
-      include: {
-        user: { select: { id: true, nick: true, steamName: true, steamId: true } },
-      },
-    }),
-    prisma.factionPlayerSalary.findMany({
-      where: { factionId },
-    }),
-    prisma.factionSalaryPayout.findMany({
-      where: { factionId },
-      orderBy: { createdAt: "desc" },
-      take: 300,
-      include: {
-        user: { select: { id: true, nick: true, steamName: true, steamId: true } },
-      },
-    }),
-  ]);
+  const [contracts, salaries, payouts, allFactions, allPlayers] =
+    await Promise.all([
+      prisma.factionPlayerContract.findMany({
+        where: { factionId },
+        orderBy: [{ status: "asc" }, { endsAt: "desc" }],
+        take: 80,
+        include: {
+          user: {
+            select: { id: true, nick: true, steamName: true, steamId: true },
+          },
+        },
+      }),
+      prisma.factionPlayerSalary.findMany({
+        where: { factionId },
+      }),
+      prisma.factionSalaryPayout.findMany({
+        where: { factionId },
+        orderBy: { createdAt: "desc" },
+        take: 300,
+        include: {
+          user: {
+            select: { id: true, nick: true, steamName: true, steamId: true },
+          },
+        },
+      }),
+      listBalanceFactions(),
+      listBalancePlayers(),
+    ]);
+
+  const salaryRows = allFactions.length
+    ? await prisma.factionPlayerSalary.findMany({
+        where: { factionId: { in: allFactions.map((f) => f.id) } },
+        select: { factionId: true, userId: true, pct: true },
+      })
+    : [];
 
   const salaryByUser = Object.fromEntries(salaries.map((s) => [s.userId, s.pct]));
+  const salaryPctByPair = Object.fromEntries(
+    salaryRows.map((s) => [`${s.factionId}:${s.userId}`, s.pct]),
+  );
   const activeContractByUser = Object.fromEntries(
     contracts
       .filter((c) => c.status === "ACTIVE" && c.endsAt.getTime() > Date.now())
@@ -73,9 +95,31 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   return NextResponse.json({
     canManage: gate.staff,
+    isKeech,
+    myFactionId: factionId,
     treasury: gate.loaded.view!.blueberryBalance,
     salaryPresets: SALARY_PRESETS,
     selfList,
+    salaryFactions: allFactions.map((f) => ({
+      id: f.id,
+      name: f.name,
+      slug: f.slug,
+      logoUrl: f.logoUrl,
+      color: f.color,
+    })),
+    salaryPlayers: allPlayers.map((p) => ({
+      userId: p.userId,
+      nick: p.nick,
+      seat: p.seat,
+      salaryPct: salaryPctByPair[`${p.factionId}:${p.userId}`] ?? 0,
+      factionId: p.factionId,
+      factionName: p.factionName,
+      factionSlug: p.factionSlug,
+      factionLogoUrl: p.factionLogoUrl,
+      factionColor: p.factionColor,
+      canEdit:
+        gate.staff && (isKeech || p.factionId === factionId),
+    })),
     members: members.map((m) => ({
       userId: m.userId,
       nick: m.nick,
@@ -124,6 +168,7 @@ export async function POST(req: Request, ctx: Ctx) {
     op?: string;
     userId?: string;
     contractId?: string;
+    factionId?: string;
     pct?: number;
     note?: string;
   };
@@ -168,8 +213,15 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   if (op === "set_salary") {
+    const targetFactionId = String(body.factionId || factionId).trim() || factionId;
+    if (targetFactionId !== factionId && !gate.loaded.view!.keech) {
+      return NextResponse.json(
+        { error: "ЗП другой фракции — только Keech" },
+        { status: 403 },
+      );
+    }
     const res = await setPlayerSalaryPct({
-      factionId,
+      factionId: targetFactionId,
       userId: String(body.userId || ""),
       pct: Number(body.pct) || 0,
       updatedBy: gate.meId,
