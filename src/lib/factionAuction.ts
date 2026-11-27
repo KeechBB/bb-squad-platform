@@ -789,7 +789,7 @@ export async function getSelfListStatus(userId: string | null): Promise<{
 export async function openSelfListAuction(opts: {
   userId: string;
   factionId: string;
-}): Promise<{
+}): Promise<
   | {
       ok: true;
       lotId: string;
