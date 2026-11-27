@@ -1050,7 +1050,7 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
             </mark>
             . Выберите участника — он уйдёт на аукцион по рыночной цене (
             <mark className="faction-guide-hi">20 000 + весь гринд</mark>
-            ). Другие фракции будут торговаться. Если не выберете до конца grace
+            ). Другие фракции будут торговаться. Если не выберете до конца отсрочки
             {penalty.graceEndsAt
               ? ` (${new Date(penalty.graceEndsAt).toLocaleString("ru-RU")})`
               : ""}
@@ -1251,12 +1251,12 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
         <h4>Если норму не выполнили</h4>
         <p className="muted">
           После закрытия окна (01:00 МСК) фракции ниже цели получают{" "}
-          <mark className="faction-guide-hi">24 часа grace</mark>. Штаб решает, кого
-          отпустить — или спасается трансфером.
+          <mark className="faction-guide-hi">24 часа отсрочки</mark>. Штаб решает,
+          кого отпустить — или спасается трансфером.
         </p>
         <ol className="faction-race-howto-list">
           <li>
-            На вкладке <strong>Трансферы</strong> появится красный таймер grace.
+            На вкладке <strong>Трансферы</strong> появится красный таймер отсрочки.
             Глава и зам выбирают <strong>MEMBER</strong> на аукцион (глава/зам не
             уходят).
           </li>
@@ -1266,7 +1266,7 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
             Кнопка выбора — прямо в блоке штрафа на этой странице гонки.
           </li>
           <li>
-            Не выбрали до конца grace — система сама выставит{" "}
+            Не выбрали до конца отсрочки — система сама выставит{" "}
             <strong>случайного MEMBER</strong> на аукцион.
           </li>
           <li>

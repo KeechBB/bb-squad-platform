@@ -315,14 +315,14 @@ async function finalizeWindow(bounds: RaceWindowBounds, now: Date) {
           finalFailBody(r.faction.name, amount, r.goal, nextGoal),
           "",
           "Что делать: в Менеджмент → Гонка выберите игрока на аукцион по рыночной стоимости (20 000 + весь гринд).",
-          "Если не выберете до конца grace — система выставит случайного сама.",
+          "Если не выберете до конца отсрочки — система выставит случайного сама.",
         ].join("\n"),
         sourceKey: `race:final:${bounds.id}:${r.factionId}`,
       });
       await writeActionLog({
         category: "faction",
         action: "faction_race_fail",
-        message: `Гонка: «${r.faction.name}» не набрала ${r.goal} (факт ${amount}). Grace до ${graceEndsAt.toISOString()} — выбрать игрока на аукцион.`,
+        message: `Гонка: «${r.faction.name}» не набрала ${r.goal} (факт ${amount}). Отсрочка до ${graceEndsAt.toISOString()} — выбрать игрока на аукцион.`,
         clanId: r.faction.clanId,
         clanTag: "BB",
         meta: {
