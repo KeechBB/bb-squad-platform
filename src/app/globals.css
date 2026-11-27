@@ -29477,52 +29477,71 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   max-width: 440px;
 }
 
-/* —— Сезоны (кнопка 8) —— */
+/* —— Сезоны / FAQ guide —— */
+.faction-guide {
+  min-width: 0;
+  max-width: 100%;
+}
+.faction-guide-hi {
+  background: rgba(250, 204, 21, 0.22);
+  color: #fde68a;
+  padding: 0 0.28em;
+  border-radius: 4px;
+  font-weight: 700;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.faction-guide-block {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(7, 9, 16, 0.45);
+}
+.faction-guide-block h4 {
+  margin: 0 0 8px;
+  font-size: 1.02rem;
+  color: #f8fafc;
+}
+.faction-guide-block p {
+  margin: 0 0 0.65rem;
+  color: #e2e8f0;
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+.faction-guide-block p:last-child {
+  margin-bottom: 0;
+}
+.faction-guide-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  color: #e2e8f0;
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+.faction-guide-now-tag {
+  color: #facc15;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
 .faction-seasons {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-.faction-seasons-now {
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(167, 139, 250, 0.28);
-  background: rgba(15, 23, 42, 0.55);
-}
-.faction-seasons-now-label {
-  margin: 0 0 2px;
-  font-size: 0.8rem;
-}
-.faction-seasons-now-title {
-  margin: 0 0 4px;
-  font-size: 1.15rem;
-}
-.faction-seasons-badge {
-  display: inline-block;
-  margin-top: 8px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-.faction-seasons-badge.is-skip {
-  background: rgba(245, 158, 11, 0.16);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.35);
-}
-.faction-seasons-badge.is-on {
-  background: rgba(34, 197, 94, 0.14);
-  color: #86efac;
-  border: 1px solid rgba(34, 197, 94, 0.35);
-}
-.faction-seasons-next {
-  margin: 10px 0 0;
+  overflow: auto;
+  max-height: 100%;
+  padding-right: 2px;
 }
 .faction-seasons-tiers {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
+  margin: 8px 0 12px;
 }
 @media (max-width: 920px) {
   .faction-seasons-tiers {
@@ -29539,19 +29558,69 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   flex-direction: column;
   gap: 4px;
   font-size: 0.82rem;
+  color: #e2e8f0;
+  text-align: left;
+}
+.faction-seasons-tier.is-click {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.faction-seasons-tier.is-click:hover {
+  border-color: rgba(250, 204, 21, 0.45);
+  background: rgba(250, 204, 21, 0.08);
+}
+.faction-seasons-tier.has-pick {
+  border-color: rgba(74, 222, 128, 0.45);
+  background: rgba(22, 101, 52, 0.18);
 }
 .faction-seasons-tier strong {
-  color: #e2e8f0;
+  color: #f8fafc;
 }
-.faction-seasons-rules {
-  margin: 0;
-  padding-left: 1.15rem;
-  color: #cbd5e1;
-  font-size: 0.9rem;
-  line-height: 1.45;
+.faction-seasons-tier-range {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+.faction-seasons-tier-pick {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 2px;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.faction-seasons-confirm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.faction-seasons-confirm-row .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.faction-seasons-confirm-hint {
+  margin: 0;
+  flex: 1 1 220px;
+  font-size: 0.86rem;
+}
+.faction-seasons-pick-modal,
+.faction-seasons-confirm-modal {
+  max-width: min(720px, 94vw);
+}
+.faction-seasons-confirm-list {
+  margin: 12px 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: #e2e8f0;
+}
+.faction-seasons-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
 }
 .xfer-table tr.is-cur-season td {
   background: rgba(167, 139, 250, 0.1);

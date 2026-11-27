@@ -344,7 +344,9 @@ export function FactionManagementClient({
                     canManage={view.canManage || view.keech}
                   />
                 ) : null}
-                {panel === "seasons" ? <FactionSeasonsPanel /> : null}
+                {panel === "seasons" ? (
+                  <FactionSeasonsPanel slug={view.slug} />
+                ) : null}
                 {panel === "faq" ? <FactionFaqPanel /> : null}
                 {!panel ? (
                   <p className="muted">Выберите раздел слева.</p>

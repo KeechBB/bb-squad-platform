@@ -1,7 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { FAQ_TOPICS, type FaqTopicId } from "@/lib/factionFaq";
+
+function renderGuideLine(text: string): ReactNode {
+  // *важное* → жёлтая пометка; иначе целиком как есть
+  const parts = text.split(/(\*[^*]+\*)/g);
+  return parts.map((p, i) => {
+    if (p.startsWith("*") && p.endsWith("*") && p.length > 2) {
+      return (
+        <mark key={i} className="faction-guide-hi">
+          {p.slice(1, -1)}
+        </mark>
+      );
+    }
+    return <span key={i}>{p}</span>;
+  });
+}
 
 export function FactionFaqPanel() {
   const [activeId, setActiveId] = useState<FaqTopicId>("mgmt");
@@ -11,11 +26,12 @@ export function FactionFaqPanel() {
   );
 
   return (
-    <div className="faction-faq">
+    <div className="faction-faq faction-guide">
       <div className="faction-faq-head">
-        <h3 className="xfer-title">FAQ · справочная</h3>
+        <h3 className="xfer-title">✦ FAQ · справочная</h3>
         <p className="muted xfer-sub">
-          Ткни тему справа — слева подробности: что это и зачем.
+          Справа темы — ткни квадратик. Слева живое объяснение: что можно
+          делать, за что получаете, когда и где.
         </p>
       </div>
 
@@ -25,7 +41,7 @@ export function FactionFaqPanel() {
           <p className="muted faction-faq-detail-blurb">{active.blurb}</p>
           <div className="faction-faq-detail-body">
             {active.body.map((p, i) => (
-              <p key={`${active.id}-${i}`}>{p}</p>
+              <p key={`${active.id}-${i}`}>{renderGuideLine(p)}</p>
             ))}
           </div>
         </article>

@@ -135,16 +135,45 @@ export function formatYmdRu(ymd: string): string {
   return `${d}.${m}.${y}`;
 }
 
+export type SeasonTierDef = (typeof SEASON_AUCTION_TIERS)[number];
+
+/** Игрок подходит под тир по текущей стоимости (верхняя граница не включена, кроме Тир 1). */
+export function valueFitsTier(valueBd: number, tier: SeasonTierDef): boolean {
+  const v = Math.max(0, Math.round(valueBd));
+  if (tier.maxBd == null) return v >= tier.minBd;
+  return v >= tier.minBd && v < tier.maxBd;
+}
+
 export function tierLabelForValue(valueBd: number): string | null {
   const v = Math.max(0, Math.round(valueBd));
   for (const t of SEASON_AUCTION_TIERS) {
-    if (t.maxBd == null) {
-      if (v >= t.minBd) return t.label;
-    } else if (v >= t.minBd && v < t.maxBd) {
-      return t.label;
-    }
+    if (valueFitsTier(v, t)) return t.label;
   }
   return null;
+}
+
+export function tierDefByNumber(tier: number): SeasonTierDef | null {
+  return SEASON_AUCTION_TIERS.find((t) => t.tier === tier) || null;
+}
+
+export function mskTodayYmd(now = new Date()): string {
+  return mskYmd(now);
+}
+
+/** День межсезонных трансферов = последний день сезона (МСК), если аукцион включён. */
+export function isSeasonTransferDay(
+  season: SeasonDef | null,
+  now = new Date(),
+): boolean {
+  if (!season || !season.endAuctionEnabled) return false;
+  return mskYmd(now) === season.endsOn;
+}
+
+export function formatTierRangeRu(tier: SeasonTierDef): string {
+  if (tier.maxBd == null) {
+    return `от ${tier.minBd.toLocaleString("ru-RU")} B$ и выше`;
+  }
+  return `${tier.minBd.toLocaleString("ru-RU")} – ${tier.maxBd.toLocaleString("ru-RU")} B$`;
 }
 
 export function seasonAuctionRulesText(): string[] {
@@ -156,4 +185,8 @@ export function seasonAuctionRulesText(): string[] {
     "В этот день фракция берёт не больше одного игрока каждого тира; в сумме может купить до 5 игроков (в т.ч. своей фракции).",
     "Осень 2026 (Season 1): межсезонный аукцион пропускаем. Первый рабочий — в конце зимы 2026/27.",
   ];
+}
+
+export function draftStorageKey(slug: string, seasonId: string): string {
+  return `bb-season-draft:${slug}:${seasonId}`;
 }
