@@ -88,7 +88,7 @@ export type FactionMemberRow = {
   mainCwWins: number;
   juniorCwWins: number;
   foundingBonus: number;
-  /** marketValue + grindBroughtBd + cwValueBonus. */
+  /** 20 000 + grindBroughtBd (CW-бонус в цену не входит). */
   playerValue: number;
 };
 
@@ -271,8 +271,23 @@ export async function loadFactionView(slug: string, steamId: string | null) {
     const st = priceStats.get(m.userId);
     const grindBroughtBd = Math.max(0, Math.round(st?.grindBroughtBd || 0));
     const scarcity = rosterKitScarcity(kitCounts.get(kitKey) || 0, rosterSize);
+    // База без гринда (для разбивки в UI); полная цена = 20k + гринд.
     const marketValue = estimateWithKit(
       st ? { ...st, grindBroughtBd: 0 } : undefined,
+      mainKit,
+      scarcity,
+    );
+    const playerValue = estimateWithKit(
+      st || {
+        trainDays14: 0,
+        matches30: 0,
+        kills30: 0,
+        deaths30: 0,
+        res30: 0,
+        nok30: 0,
+        lastSeenDaysAgo: null,
+        grindBroughtBd,
+      },
       mainKit,
       scarcity,
     );
@@ -295,7 +310,8 @@ export async function loadFactionView(slug: string, steamId: string | null) {
       mainCwWins: bonus?.mainWins || 0,
       juniorCwWins: bonus?.juniorWins || 0,
       foundingBonus: bonus?.foundingBonus || 0,
-      playerValue: marketValue + grindBroughtBd + cwValueBonus,
+      /** Канон: 20 000 + гринд. CW-бонус в цену больше не входит. */
+      playerValue,
     };
   });
 

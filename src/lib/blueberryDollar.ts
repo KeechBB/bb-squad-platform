@@ -14,7 +14,10 @@ export const BD_NAME = "Черничный Доллар";
 /** Подпись к расчётной цене на доске / при выставлении. */
 export const ESTIMATE_LABEL = "оценочная стоимость";
 export const ESTIMATE_HINT =
-  "Оценка по явке на TR1–TR5, киллам/ресам/KD, редкости роли + сколько B$ игрок принёс в казну гринда (до 1 000). Цена на доске — не ниже 80% от оценки.";
+  "Стоимость = 20 000 B$ + весь гринд игрока в казну. Цена на доске — не ниже 80% от оценки.";
+
+/** Стартовая цена любого игрока (база формулы). */
+export const ESTIMATE_BASE = 20_000;
 
 /** Минимальный состав фракции для участия в трансферах. */
 export const TRANSFER_MIN_ROSTER = 30;
@@ -46,8 +49,8 @@ export function listingFeeFromAsk(askPrice: number): number {
   return Math.max(1, Math.round(ask * TRANSFER_LIST_FEE_RATIO));
 }
 
-/** Пол для оценки. Потолка нет — сильные игроки могут уходить выше. */
-export const ESTIMATE_FLOOR = 15_000;
+/** Пол = стартовая база. Потолка нет. */
+export const ESTIMATE_FLOOR = ESTIMATE_BASE;
 /** @deprecated потолок оценки снят; оставлено для совместимости импортов. */
 export const ESTIMATE_CEILING = Number.POSITIVE_INFINITY;
 
@@ -75,103 +78,25 @@ export type PlayerPriceStats = {
   grindAvgPerMatchBd?: number;
 };
 
-function clamp(n: number, lo: number, hi: number) {
-  return Math.min(hi, Math.max(lo, n));
-}
-
-function roleMult(kitKey?: string | null): number {
-  const kit = String(kitKey || "").toLowerCase();
-  if (!kit || kit === "unknown" || kit === "—") return 0.95;
-  if (kit === "sl" || kit.includes("squad lead") || kit.includes("командир")) return 1.55;
-  if (kit.includes("medic") || kit === "med" || kit.includes("медик")) return 1.42;
-  // hat / lat / at — EN keys after normalizeKit + RU labels if raw slipped through
-  if (
-    kit.includes("hat") ||
-    kit === "lat" ||
-    kit === "at" ||
-    kit.includes("тандем") ||
-    kit.includes("труба")
-  )
-    return 1.35;
-  if (kit === "ar" || kit === "mg" || kit.includes("auto") || kit.includes("пулемет")) return 1.2;
-  if (
-    kit.includes("eng") ||
-    kit.includes("crew") ||
-    kit.includes("sapper") ||
-    kit.includes("сапер") ||
-    kit.includes("мехвод")
-  )
-    return 1.18;
-  if (kit.includes("rifle") || kit.includes("стрелок")) return 1.0;
-  return 1.08;
-}
-
-function scarcityMult(level: ScarcityForPrice): number {
-  if (level === "critical") return 1.45;
-  if (level === "thin") return 1.22;
-  if (level === "surplus") return 0.88;
-  return 1;
-}
-
 /**
- * Оценочная стоимость игрока (десятки–сотни тысяч B$).
+ * Оценочная стоимость игрока.
  *
- * Состав:
- *   база 22k
- * + явка TR (до ~40k за 14/14 дней)
- * + вклад в бою за 30д (киллы / ресы / ноки, с потолком)
- * × KD
- * × роль
- * × дефицит роли во фракции
- * × свежесть онлайна на сайте
- * + гринд в казну (округление до 1 000)
+ *   20 000 (старт любого игрока)
+ * + весь гринд B$, который игрок принёс в казну (все катки)
+ *
+ * Больше ничего в формулу не входит.
  */
 export function roundGrindBonus(grindBroughtBd: number): number {
-  const n = Math.max(0, Number(grindBroughtBd) || 0);
-  return Math.round(n / 1_000) * 1_000;
+  // Раньше округляли до 1 000; теперь в стоимость входит полный гринд.
+  return Math.max(0, Math.round(Number(grindBroughtBd) || 0));
 }
 
 export function estimatePlayerPrice(stats: Partial<PlayerPriceStats> & {
   /** @deprecated leftover stub */
   sri?: number | null;
 } = {}): number {
-  const trainDays14 = clamp(Number(stats.trainDays14) || 0, 0, 14);
-  const matches30 = Math.max(0, Number(stats.matches30) || 0);
-  const kills30 = Math.max(0, Number(stats.kills30) || 0);
-  const deaths30 = Math.max(0, Number(stats.deaths30) || 0);
-  const res30 = Math.max(0, Number(stats.res30) || 0);
-  const nok30 = Math.max(0, Number(stats.nok30) || 0);
-  const lastSeenDaysAgo =
-    stats.lastSeenDaysAgo == null ? null : Math.max(0, Number(stats.lastSeenDaysAgo));
-
-  const base = 22_000;
-  const onlineScore = (trainDays14 / 14) * 40_000;
-  const combatRaw = kills30 * 95 + res30 * 120 + nok30 * 55 + matches30 * 320;
-  const combatScore = clamp(combatRaw, 0, 85_000);
-
-  const kd = deaths30 > 0 ? kills30 / deaths30 : kills30 > 0 ? Math.min(kills30, 3) : 0.6;
-  const kdMult = clamp(0.8 + kd * 0.38, 0.75, 1.65);
-
-  let freshness = 1;
-  if (lastSeenDaysAgo != null) {
-    if (lastSeenDaysAgo <= 2) freshness = 1.1;
-    else if (lastSeenDaysAgo <= 7) freshness = 1.0;
-    else if (lastSeenDaysAgo <= 21) freshness = 0.9;
-    else freshness = 0.78;
-  } else if (trainDays14 === 0 && matches30 === 0) {
-    freshness = 0.75;
-  }
-
-  const raw =
-    (base + onlineScore + combatScore) *
-    kdMult *
-    roleMult(stats.kitKey) *
-    scarcityMult(stats.scarcityLevel) *
-    freshness;
-
-  const rounded = Math.round(raw / 500) * 500;
-  const grindBonus = roundGrindBonus(Number(stats.grindBroughtBd) || 0);
-  return Math.max(ESTIMATE_FLOOR, rounded + grindBonus);
+  const grind = roundGrindBonus(Number(stats.grindBroughtBd) || 0);
+  return ESTIMATE_BASE + grind;
 }
 
 /** Тарифы гринда → казна фракции. Линейно, без потолка за катку. */

@@ -29261,6 +29261,34 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Стоимость игроков (кнопка 6) */
+.faction-values {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.faction-values-head {
+  flex: 0 0 auto;
+}
+.faction-values .xfer-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+.faction-values-detail {
+  max-width: 520px;
+  max-height: min(80vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+.faction-values-detail .profile-match-modal-body {
+  overflow: auto;
+  min-height: 0;
+}
 .faction-mgmt-denied-modal {
   max-width: 440px;
 }

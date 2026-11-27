@@ -258,7 +258,8 @@ export async function loadMyValueReport(opts: {
   const bonus = bonuses.get(opts.userId) || emptyBonus();
   const market = Math.max(0, Math.round(opts.marketValue || 0));
   const grind = Math.max(0, Math.round(opts.grindBroughtBd || 0));
-  const total = market + grind + bonus.total;
+  // Канон цены: база (market без гринда) + гринд. CW-бонус — только справочно в отчёте.
+  const total = market + grind;
 
   const factionAngel = resolveFactionAngel({
     nick: opts.nick,

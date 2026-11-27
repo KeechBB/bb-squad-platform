@@ -11,6 +11,7 @@ import {
 } from "@/components/FactionBoards";
 import { FactionTransfers } from "@/components/FactionTransfers";
 import { FactionHrPanel } from "@/components/FactionHrPanel";
+import { FactionPlayerValuesPanel } from "@/components/FactionPlayerValuesPanel";
 import { BdAmount } from "@/components/BdMark";
 
 function formatJoinedAt(iso: string) {
@@ -29,6 +30,7 @@ type MgmtPanel =
   | "transfers"
   | "economy"
   | "hr"
+  | "values"
   | null;
 
 type NavBtn = {
@@ -44,7 +46,7 @@ const NAV_BUTTONS: NavBtn[] = [
   { id: 3, label: "Трансферы", panel: "transfers", ready: true },
   { id: 4, label: "Экономика фракции", panel: "economy", ready: true },
   { id: 5, label: "Контракты и зарплаты", panel: "hr", ready: true },
-  { id: 6, label: "Кнопка 6", panel: null, ready: false },
+  { id: 6, label: "Стоимость игроков", panel: "values", ready: true },
   { id: 7, label: "Кнопка 7", panel: null, ready: false },
   { id: 8, label: "Кнопка 8", panel: null, ready: false },
   { id: 9, label: "Кнопка 9", panel: null, ready: false },
@@ -326,6 +328,9 @@ export function FactionManagementClient({
                     slug={view.slug}
                     canManage={view.canManage || view.keech}
                   />
+                ) : null}
+                {panel === "values" ? (
+                  <FactionPlayerValuesPanel slug={view.slug} />
                 ) : null}
                 {!panel ? (
                   <p className="muted">Выберите раздел слева.</p>

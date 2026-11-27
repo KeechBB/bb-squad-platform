@@ -157,8 +157,7 @@ export async function auditFactionPlayerValues(opts?: {
         mainKit,
         scarcity
       );
-      const bonus = bonuses.get(m.userId);
-      const totalValue = market + grind + (bonus?.total || 0);
+      const totalValue = estimateWithKit(st, mainKit, scarcity);
       const truthDays = await truthTrainDays14(m.userId, m.user.steamId);
       const reasons: string[] = [];
 
