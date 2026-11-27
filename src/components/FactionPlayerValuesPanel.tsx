@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BdAmount } from "@/components/BdMark";
 
 type ValueRow = {
@@ -28,6 +28,16 @@ type DetailPayload = {
   days: DayRow[];
 };
 
+type SortKey =
+  | "order"
+  | "nick"
+  | "joined"
+  | "value"
+  | "avg"
+  | "contract"
+  | "salary";
+type SortDir = "asc" | "desc";
+
 function fmtJoined(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
@@ -44,6 +54,37 @@ function fmtDay(ymd: string) {
   return `${d}.${m}.${y}`;
 }
 
+function cmpStr(a: string, b: string) {
+  return String(a || "").localeCompare(String(b || ""), "ru", {
+    sensitivity: "base",
+  });
+}
+
+function SortTh({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  onClick: () => void;
+}) {
+  return (
+    <th aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}>
+      <button
+        type="button"
+        className={`xfer-sort${active ? " is-on" : ""}`}
+        onClick={onClick}
+      >
+        {label}
+        {active ? (dir === "asc" ? " ↑" : " ↓") : ""}
+      </button>
+    </th>
+  );
+}
+
 export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
   const [rows, setRows] = useState<ValueRow[]>([]);
   const [base, setBase] = useState(20_000);
@@ -51,6 +92,11 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<DetailPayload | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [nickFilter, setNickFilter] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
+    key: "value",
+    dir: "desc",
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,6 +129,40 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const nickKey = nickFilter.trim().toLowerCase();
+
+  const sorted = useMemo(() => {
+    const filtered = !nickKey
+      ? [...rows]
+      : rows.filter((r) => r.nick.toLowerCase().includes(nickKey));
+    const dir = sort.dir === "asc" ? 1 : -1;
+    filtered.sort((a, b) => {
+      let c = 0;
+      if (sort.key === "nick") c = cmpStr(a.nick, b.nick);
+      else if (sort.key === "joined")
+        c = new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
+      else if (sort.key === "value") c = a.playerValue - b.playerValue;
+      else if (sort.key === "avg") c = a.avgPerDay - b.avgPerDay;
+      else if (sort.key === "contract")
+        c = Number(a.hasContract) - Number(b.hasContract);
+      else if (sort.key === "salary") c = a.salaryPct - b.salaryPct;
+      else c = a.order - b.order;
+      return c * dir || cmpStr(a.nick, b.nick) || cmpStr(a.userId, b.userId);
+    });
+    return filtered;
+  }, [rows, nickKey, sort]);
+
+  function toggleSort(key: SortKey) {
+    setSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === "asc" ? "desc" : "asc" };
+      }
+      const descDefault =
+        key === "value" || key === "avg" || key === "salary" || key === "order";
+      return { key, dir: descDefault ? "desc" : "asc" };
+    });
+  }
 
   async function openDetail(userId: string) {
     setDetailLoading(true);
@@ -120,27 +200,89 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
       </div>
       {err ? <p className="xfer-err">{err}</p> : null}
 
+      <div className="xfer-nick-filter">
+        <label className="xfer-nick-filter-label" htmlFor="faction-values-nick">
+          Ник
+        </label>
+        <input
+          id="faction-values-nick"
+          className="xfer-nick-filter-input"
+          type="search"
+          value={nickFilter}
+          onChange={(e) => setNickFilter(e.target.value)}
+          placeholder="Например Varyag…"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        {nickFilter ? (
+          <button
+            type="button"
+            className="xfer-nick-filter-clear"
+            onClick={() => setNickFilter("")}
+          >
+            Сброс
+          </button>
+        ) : null}
+      </div>
+
       <div className="xfer-table-wrap">
         <table className="xfer-table faction-values-table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Ник</th>
-              <th>Вступил</th>
-              <th>Стоимость</th>
-              <th>Ср. / день</th>
-              <th>Контракт</th>
-              <th>ЗП %</th>
+              <SortTh
+                label="#"
+                active={sort.key === "order"}
+                dir={sort.dir}
+                onClick={() => toggleSort("order")}
+              />
+              <SortTh
+                label="Ник"
+                active={sort.key === "nick"}
+                dir={sort.dir}
+                onClick={() => toggleSort("nick")}
+              />
+              <SortTh
+                label="Вступил"
+                active={sort.key === "joined"}
+                dir={sort.dir}
+                onClick={() => toggleSort("joined")}
+              />
+              <SortTh
+                label="Стоимость"
+                active={sort.key === "value"}
+                dir={sort.dir}
+                onClick={() => toggleSort("value")}
+              />
+              <SortTh
+                label="Ср. / день"
+                active={sort.key === "avg"}
+                dir={sort.dir}
+                onClick={() => toggleSort("avg")}
+              />
+              <SortTh
+                label="Контракт"
+                active={sort.key === "contract"}
+                dir={sort.dir}
+                onClick={() => toggleSort("contract")}
+              />
+              <SortTh
+                label="ЗП %"
+                active={sort.key === "salary"}
+                dir={sort.dir}
+                onClick={() => toggleSort("salary")}
+              />
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {sorted.map((r, i) => (
               <tr
                 key={r.userId}
                 className="xfer-row-click"
                 onClick={() => void openDetail(r.userId)}
               >
-                <td className="faction-mgmt-roster-num">{r.order}</td>
+                <td className="faction-mgmt-roster-num">
+                  {sort.key === "order" && !nickKey ? r.order : i + 1}
+                </td>
                 <td>
                   <strong className="xfer-nick">{r.nick}</strong>
                 </td>
@@ -167,10 +309,10 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
                 </td>
               </tr>
             ))}
-            {!rows.length ? (
+            {!sorted.length ? (
               <tr>
                 <td colSpan={7} className="muted">
-                  Состав пуст.
+                  {nickKey ? "Нет игроков по этому нику." : "Состав пуст."}
                 </td>
               </tr>
             ) : null}
