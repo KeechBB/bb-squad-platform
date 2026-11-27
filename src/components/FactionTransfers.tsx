@@ -91,7 +91,14 @@ function MyValueChart({ series }: { series: MyValuePoint[] }) {
   );
 }
 
-type XferSubTab = "desk" | "ledger" | "market" | "closed" | "trains" | "players";
+type XferSubTab =
+  | "desk"
+  | "ledger"
+  | "market"
+  | "closed"
+  | "days"
+  | "trains"
+  | "players";
 type SortDir = "asc" | "desc";
 
 function xferSubTabKey(slug: string, staff: boolean) {
@@ -106,6 +113,7 @@ function normalizeXferSubTab(v: string | null, staff: boolean): XferSubTab | nul
     v === "ledger" ||
     v === "market" ||
     v === "closed" ||
+    v === "days" ||
     v === "trains" ||
     v === "players";
   if (!ok) return null;
@@ -336,10 +344,27 @@ type Payload = {
   }[];
   grindMatches?: GrindMatchRow[];
   grindPlayers?: GrindPlayerRow[];
+  dailyEconomy?: DailyEconomyRow[];
   deals?: {
     pending: DealRow[];
     closed: DealRow[];
   };
+};
+
+type DailyEconomyRow = {
+  ymd: string;
+  dateLabel: string;
+  total: number;
+  fromPlayers: number;
+  fromBets: number;
+  otherPlus: number;
+  minusTotal: number;
+  minusItems: {
+    kind: string;
+    kindLabel: string;
+    note: string | null;
+    amount: number;
+  }[];
 };
 
 type GrindMatchFactionMember = {
@@ -413,7 +438,7 @@ type Props = {
 };
 
 const DEAL_TABS: XferSubTab[] = ["desk", "market", "closed"];
-const ECONOMY_TABS: XferSubTab[] = ["ledger", "trains", "players"];
+const ECONOMY_TABS: XferSubTab[] = ["ledger", "days", "trains", "players"];
 
 function tabsForScope(scope: FactionTransfersScope): XferSubTab[] | null {
   if (scope === "deals") return DEAL_TABS;
@@ -537,6 +562,11 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
   const [grindMatchFactionId, setGrindMatchFactionId] = useState<string | null>(
     null,
   );
+  const [dayYmd, setDayYmd] = useState<string | null>(null);
+  const [daysSort, setDaysSort] = useState<{ key: string; dir: SortDir }>({
+    key: "date",
+    dir: "desc",
+  });
   const [subTab, setSubTab] = useState<XferSubTab>(() =>
     defaultSubTab(scope, canManage),
   );
@@ -708,6 +738,7 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
   const closedDeals = data?.deals?.closed ?? [];
   const grindMatches = data?.grindMatches ?? [];
   const grindPlayers = data?.grindPlayers ?? [];
+  const dailyEconomy = data?.dailyEconomy ?? [];
 
   const ledgerSorted = useMemo(() => {
     const q = nickFilterKey;
@@ -769,6 +800,26 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
     return rows;
   }, [closedDeals, closedSort]);
 
+  const daysSorted = useMemo(() => {
+    const rows = [...dailyEconomy];
+    const dir = daysSort.dir === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      let c = 0;
+      if (daysSort.key === "total") c = a.total - b.total;
+      else if (daysSort.key === "players") c = a.fromPlayers - b.fromPlayers;
+      else if (daysSort.key === "bets") c = a.fromBets - b.fromBets;
+      else if (daysSort.key === "minus") c = a.minusTotal - b.minusTotal;
+      else c = cmpStr(a.ymd, b.ymd);
+      return c * dir || cmpStr(a.ymd, b.ymd);
+    });
+    return rows;
+  }, [dailyEconomy, daysSort]);
+
+  const dayOpen = useMemo(
+    () => daysSorted.find((d) => d.ymd === dayYmd) || null,
+    [daysSorted, dayYmd],
+  );
+
   const trainsSorted = useMemo(() => {
     const rows = [...grindMatches];
     const dir = trainsSort.dir === "asc" ? 1 : -1;
@@ -823,6 +874,7 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
   const ledgerPage = useFitTablePage(ledgerSorted.length, Boolean(data) && subTab === "ledger");
   const pendingPage = useFitTablePage(pendingSorted.length, Boolean(data) && subTab === "market");
   const closedPage = useFitTablePage(closedSorted.length, Boolean(data) && subTab === "closed");
+  const daysPage = useFitTablePage(daysSorted.length, Boolean(data) && subTab === "days");
   const trainsPage = useFitTablePage(trainsSorted.length, Boolean(data) && subTab === "trains");
   const playersPage = useFitTablePage(playersSorted.length, Boolean(data) && subTab === "players");
 
@@ -930,6 +982,10 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
     closedPage.safePage * closedPage.pageSize,
     closedPage.safePage * closedPage.pageSize + closedPage.pageSize,
   );
+  const daysVisible = daysSorted.slice(
+    daysPage.safePage * daysPage.pageSize,
+    daysPage.safePage * daysPage.pageSize + daysPage.pageSize,
+  );
   const trainsVisible = trainsSorted.slice(
     trainsPage.safePage * trainsPage.pageSize,
     trainsPage.safePage * trainsPage.pageSize + trainsPage.pageSize,
@@ -1031,6 +1087,15 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
             onClick={() => selectSubTab("closed")}
           >
             Успешные сделки
+          </button>
+        ) : null}
+        {showTab("days") ? (
+          <button
+            type="button"
+            className={`admin-tab${subTab === "days" ? " active" : ""}`}
+            onClick={() => selectSubTab("days")}
+          >
+            Доход по дням
           </button>
         ) : null}
         {showTab("trains") ? (
@@ -1540,6 +1605,63 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
         </div>
       ) : null}
 
+      {subTab === "days" ? (
+        <div className="xfer-tab-body xfer-tables">
+          <p className="muted faction-hr-hint">
+            Итог казны за календарный день (МСК). Нажми день — разбивка: игроки,
+            ставки, минусы.
+          </p>
+          <div className="xfer-fit" ref={daysPage.fitRef}>
+            <div className="xfer-table-wrap">
+              <table className="xfer-table">
+                <thead>
+                  <tr>
+                    <SortTh
+                      label="Дата"
+                      active={daysSort.key === "date"}
+                      dir={daysSort.dir}
+                      onClick={() =>
+                        toggleSort(daysSort, setDaysSort, "date", daysPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="Итого"
+                      active={daysSort.key === "total"}
+                      dir={daysSort.dir}
+                      onClick={() =>
+                        toggleSort(daysSort, setDaysSort, "total", daysPage.setPage)
+                      }
+                    />
+                  </tr>
+                </thead>
+                <tbody>
+                  {daysVisible.map((d) => (
+                    <tr
+                      key={d.ymd}
+                      className="xfer-row-click"
+                      onClick={() => setDayYmd(d.ymd)}
+                    >
+                      <td>{d.dateLabel}</td>
+                      <td className={d.total >= 0 ? "is-plus" : "is-minus"}>
+                        <BdAmount n={d.total} signed />
+                      </td>
+                    </tr>
+                  ))}
+                  {!daysSorted.length ? (
+                    <tr>
+                      <td colSpan={2} className="muted">
+                        Пока нет движений казны.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <XferPager page={daysPage} total={daysSorted.length} />
+        </div>
+      ) : null}
+
       {subTab === "trains" ? (
         <div className="xfer-tab-body xfer-tables">
           <div className="xfer-fit" ref={trainsPage.fitRef}>
@@ -1735,6 +1857,84 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
           </div>
           <XferPager page={playersPage} total={playersSorted.length} />
         </div>
+      ) : null}
+
+      {dayOpen ? (
+        <DraggableModal open closeOnBackdrop onClose={() => setDayYmd(null)}>
+          <header className="profile-match-modal-head" data-drag-handle title="Перетащить окно">
+            <div>
+              <p className="muted">Доход фракции за день</p>
+              <h2 className="profile-mail-modal-title">{dayOpen.dateLabel}</h2>
+              <p className="muted">Календарный день · МСК</p>
+            </div>
+            <button
+              type="button"
+              className="profile-match-modal-close"
+              onClick={() => setDayYmd(null)}
+            >
+              ×
+            </button>
+          </header>
+
+          <div className="xfer-day-detail">
+            <div className="xfer-day-total">
+              <span className="muted">Итого</span>
+              <strong className={dayOpen.total >= 0 ? "is-plus" : "is-minus"}>
+                <BdAmount n={dayOpen.total} signed />
+              </strong>
+            </div>
+
+            <ul className="xfer-day-summary">
+              <li>
+                <span>От игроков (гринд)</span>
+                <span className="is-plus">
+                  <BdAmount n={dayOpen.fromPlayers} signed />
+                </span>
+              </li>
+              <li>
+                <span>От ставок (выигрыш / возврат)</span>
+                <span className="is-plus">
+                  <BdAmount n={dayOpen.fromBets} signed />
+                </span>
+              </li>
+              {dayOpen.otherPlus > 0 ? (
+                <li>
+                  <span>Прочий плюс</span>
+                  <span className="is-plus">
+                    <BdAmount n={dayOpen.otherPlus} signed />
+                  </span>
+                </li>
+              ) : null}
+              <li>
+                <span>Минус</span>
+                <span className="is-minus">
+                  <BdAmount n={dayOpen.minusTotal} signed />
+                </span>
+              </li>
+            </ul>
+
+            <h4 className="faction-hr-sub">Минусы · за что</h4>
+            {dayOpen.minusItems.length ? (
+              <ul className="xfer-day-minus">
+                {dayOpen.minusItems.map((item, i) => (
+                  <li key={`${item.kind}-${i}-${item.amount}`}>
+                    <div>
+                      <strong>{item.kindLabel}</strong>
+                      {item.note ? (
+                        <p className="muted xfer-day-minus-note">{item.note}</p>
+                      ) : null}
+                    </div>
+                    <span className="is-minus">
+                      <BdAmount n={item.amount} signed />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">Минусов за этот день не было.</p>
+            )}
+          </div>
+        </DraggableModal>
       ) : null}
 
       {grindMatchOpen ? (
@@ -2308,6 +2508,16 @@ function ledgerKindRu(kind: string) {
   if (kind === "transfer_out") return "Сделка −";
   if (kind === "listing_fee") return "Комиссия лота";
   if (kind === "admin_adjust") return "Правка";
+  if (kind === "contract_fee") return "Контракт";
+  if (kind === "salary_out") return "Зарплата";
+  if (kind === "night_bet") return "Ставка";
+  if (kind === "night_bet_win") return "Выигрыш ставки";
+  if (kind === "night_bet_refund") return "Возврат ставки";
+  if (kind === "auction_bid") return "Ставка аукциона";
+  if (kind === "auction_refund") return "Возврат аукциона";
+  if (kind === "market_buy") return "Маркет −";
+  if (kind === "market_sell") return "Маркет +";
+  if (kind === "officer_deposit") return "Взнос";
   return kind;
 }
 

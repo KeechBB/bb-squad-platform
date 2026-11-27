@@ -34,6 +34,7 @@ import {
   minAskFromEstimate,
 } from "@/lib/blueberryDollar";
 import { mainKitByUserIds } from "@/lib/squadRoles";
+import { buildFactionDayEconomy } from "@/lib/factionDayEconomy";
 
 export const runtime = "nodejs";
 
@@ -73,7 +74,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     },
   } as const;
 
-  const [window, board, myListings, allPendingOffers, acceptedDeals, ledger, priceStats, grindMatches, grindPlayers] =
+  const [window, board, myListings, allPendingOffers, acceptedDeals, ledger, dayLedger, priceStats, grindMatches, grindPlayers] =
     await Promise.all([
       getTransferWindowState(),
       loadListingBoard({ buyerScarcityByKit: scarcityByKit }),
@@ -102,6 +103,12 @@ export async function GET(_req: Request, ctx: Ctx) {
         where: { factionId },
         orderBy: { createdAt: "desc" },
         take: 800,
+      }),
+      /** Все проводки фракции для дневных итогов (без лимита ленты). */
+      prisma.factionLedgerEntry.findMany({
+        where: { factionId },
+        select: { amount: true, kind: true, note: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
       }),
       loadPlayerPriceStats(loaded.view.members.map((m) => m.userId)),
       loadGrindMatchSummaries(),
@@ -339,6 +346,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     }),
     grindMatches,
     grindPlayers,
+    dailyEconomy: buildFactionDayEconomy(dayLedger),
     /**
      * «Сейчас открыты» = весь рынок: активные лоты на доске + pending-оферы.
      * Успешные сделки — только своей фракции.
