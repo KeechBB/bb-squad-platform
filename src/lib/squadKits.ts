@@ -110,6 +110,39 @@ export function kitCountsToPct(
   return out;
 }
 
+/** Короткие ярлыки китов для узких таблиц (состав менеджмента и т.п.). */
+export const KIT_ABBREV: Record<StandardKit, string> = {
+  "Командир отряда": "SL",
+  Стрелок: "Rifle",
+  Медик: "Medic",
+  "Легкий Пулемет": "AR",
+  "Тяжелый Пулемет": "HMG",
+  "Сапер/Инженер": "Eng",
+  "Командир Мехводов": "CrewSL",
+  Мехвод: "Crew",
+  "Гранатомет подствольный": "GL",
+  "Легкая Труба": "LAT",
+  Тандем: "HAT",
+  Снайпер: "Sniper",
+  Марксман: "Marks",
+  Разведчик: "Scout",
+  Рейдер: "Raider",
+  Пилот: "Pilot",
+};
+
+/** Аббревиатура кита; полный канон-ник оставляем для title/tooltip. */
+export function kitAbbrev(raw: string | null | undefined): {
+  short: string;
+  full: string;
+} {
+  const full = canonKitName(String(raw || "").trim()) || "—";
+  if (!full || full === "—") return { short: "—", full: "—" };
+  const asCanon = full as StandardKit;
+  if (KIT_ABBREV[asCanon]) return { short: KIT_ABBREV[asCanon], full };
+  if (full.length <= 7) return { short: full, full };
+  return { short: `${full.slice(0, 6)}.`, full };
+}
+
 /** Цвета долей под тёмную тему сайта (фиолетовый акцент). */
 export const KIT_SLICE_COLORS = [
   "#a78bfa",

@@ -17,15 +17,15 @@ import { FactionSeasonsPanel } from "@/components/FactionSeasonsPanel";
 import { FactionFaqPanel } from "@/components/FactionFaqPanel";
 import { FactionBalancesPanel } from "@/components/FactionBalancesPanel";
 import { BdAmount } from "@/components/BdMark";
+import { kitAbbrev } from "@/lib/squadKits";
 
 function formatJoinedAt(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}.${mm}.${yy}`;
 }
 
 type MgmtPanel =
@@ -248,25 +248,39 @@ export function FactionManagementClient({
                 <table className="faction-mgmt-roster-table">
                   <thead>
                     <tr>
-                      <th>#</th>
-                      <th>Игрок</th>
-                      <th>Роль</th>
-                      <th>Вступил</th>
+                      <th className="faction-mgmt-roster-num">#</th>
+                      <th className="faction-mgmt-roster-nick">Игрок</th>
+                      <th className="faction-mgmt-roster-role">Роль</th>
+                      <th className="faction-mgmt-roster-date">Вступ.</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {view.members.map((m, i) => (
+                    {view.members.map((m, i) => {
+                      const kit =
+                        m.mainKit && m.mainKit !== "—"
+                          ? kitAbbrev(m.mainKit)
+                          : { short: "—", full: "—" };
+                      return (
                       <tr key={m.id}>
                         <td className="faction-mgmt-roster-num">{m.order || i + 1}</td>
-                        <td className="faction-mgmt-roster-nick">{m.nick}</td>
-                        <td className="faction-mgmt-roster-role">
-                          {m.mainKit && m.mainKit !== "—" ? m.mainKit : "—"}
+                        <td className="faction-mgmt-roster-nick" title={m.nick}>
+                          {m.nick}
                         </td>
-                        <td className="faction-mgmt-roster-date">
+                        <td
+                          className="faction-mgmt-roster-role"
+                          title={kit.full !== kit.short ? kit.full : undefined}
+                        >
+                          {kit.short}
+                        </td>
+                        <td
+                          className="faction-mgmt-roster-date"
+                          title={formatJoinedAt(m.joinedAt)}
+                        >
                           {formatJoinedAt(m.joinedAt)}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                     {!view.members.length ? (
                       <tr>
                         <td colSpan={4} className="muted">
