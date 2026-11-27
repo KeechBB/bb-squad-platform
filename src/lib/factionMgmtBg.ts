@@ -17,5 +17,6 @@ export function factionMgmtBgUrl(slug: string): string | null {
 }
 
 export function factionMgmtPath(slug: string): string {
-  return `/factions/${encodeURIComponent(slug)}/менеджмент`;
+  // Latin segment: Cyrillic `/менеджмент` 404'd in Next/prod routing.
+  return `/factions/${encodeURIComponent(slug)}/management`;
 }

@@ -39,6 +39,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
+  // Старый кириллический URL менеджмента → стабильный /management
+  const mgmtCyrillic = pathname.match(/^(\/factions\/[^/]+)\/менеджмент\/?$/);
+  if (mgmtCyrillic) {
+    const url = req.nextUrl.clone();
+    url.pathname = `${mgmtCyrillic[1]}/management`;
+    return NextResponse.redirect(url);
+  }
+
   if (isPublicAsset(pathname)) {
     return withPathHeader(req, pathname);
   }
