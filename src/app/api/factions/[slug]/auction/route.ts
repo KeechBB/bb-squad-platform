@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { loadFactionView } from "@/lib/factions";
 import {
   listAuctionBoard,
+  openSelfListAuction,
   placeAuctionBid,
   settleDueAuctions,
 } from "@/lib/factionAuction";
@@ -45,11 +46,11 @@ export async function POST(req: Request, ctx: Ctx) {
   if (loaded.error || !loaded.view) {
     return NextResponse.json({ error: "notfound" }, { status: 404 });
   }
-  if (!loaded.view.canManage && !loaded.view.keech) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
   const meId = loaded.me?.id;
   if (!meId) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  if (!loaded.view.keech && !loaded.view.mySeat) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -59,6 +60,45 @@ export async function POST(req: Request, ctx: Ctx) {
     amountBd?: number;
   };
   const op = String(body.op || "bid");
+
+  if (op === "self_list") {
+    const res = await openSelfListAuction({
+      userId: meId,
+      factionId: loaded.view.id,
+    });
+    if (!res.ok) {
+      if (res.error === "contract_active") {
+        return NextResponse.json(
+          {
+            error: "contract_active",
+            until: res.until,
+            factionName: res.factionName,
+            message: `У вас контракт с «${res.factionName}» до ${res.until}. Самовыставление недоступно, пока контракт жив.`,
+          },
+          { status: 400 },
+        );
+      }
+      const map: Record<string, string> = {
+        not_member: "Ты не в этой фракции",
+        already_on_auction: "Ты уже на аукционе",
+        balance_low:
+          "На личном балансе меньше рыночной стоимости — копи B$",
+        no_keech: "Сервис временно недоступен",
+      };
+      return NextResponse.json(
+        { error: map[res.error] || res.error },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json(res);
+  }
+
+  if (!loaded.view.canManage && !loaded.view.keech) {
+    return NextResponse.json(
+      { error: "Ставки на аукционе — только штаб фракции" },
+      { status: 403 },
+    );
+  }
 
   if (op === "bid") {
     const res = await placeAuctionBid({

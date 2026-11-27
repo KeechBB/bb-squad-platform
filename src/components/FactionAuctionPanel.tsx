@@ -204,6 +204,9 @@ export function FactionAuctionPanel({
                   {l.lotKind === "race_penalty" ? (
                     <span className="xfer-pill is-sell"> штраф гонки</span>
                   ) : null}
+                  {l.lotKind === "self_list" ? (
+                    <span className="xfer-pill is-sell"> сам</span>
+                  ) : null}
                 </div>
                 <span className="xfer-pill is-buy">
                   ещё {fmtRemain(l.remainingMs)}

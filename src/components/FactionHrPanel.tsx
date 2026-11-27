@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BdAmount } from "@/components/BdMark";
+import { DraggableModal } from "@/components/DraggableModal";
 import { useFitTablePage } from "@/lib/useFitTablePage";
 import { FactionTransfers } from "@/components/FactionTransfers";
 
@@ -39,10 +40,22 @@ type HrPayout = {
   createdAt: string;
 };
 
+type SelfListInfo = {
+  meUserId: string | null;
+  personalBd: number;
+  marketBd: number;
+  enoughBalance: boolean;
+  onAuction: boolean;
+  lotId: string | null;
+  lotKind: string | null;
+  contract: { factionName: string; endsAt: string } | null;
+};
+
 type HrPayload = {
   canManage: boolean;
   treasury: number;
   salaryPresets: number[];
+  selfList?: SelfListInfo | null;
   members: HrMember[];
   contracts: HrContract[];
   payouts: HrPayout[];
@@ -92,6 +105,8 @@ export function FactionHrPanel({
   const [tab, setTab] = useState<HrTab>("contracts");
   const [nickFilter, setNickFilter] = useState("");
   const nickKey = nickFilter.trim().toLowerCase();
+  const [contractBlockOpen, setContractBlockOpen] = useState(false);
+  const [selfBusy, setSelfBusy] = useState(false);
 
   const load = useCallback(async () => {
     setErr("");
@@ -115,6 +130,51 @@ export function FactionHrPanel({
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function selfListToAuction() {
+    const sl = data?.selfList;
+    if (!sl) return;
+    if (sl.contract) {
+      setContractBlockOpen(true);
+      return;
+    }
+    if (!sl.enoughBalance || sl.onAuction) return;
+    const ok = window.confirm(
+      `Выставить себя на аукцион?\nРыночная стоимость / мин. ставка: ${sl.marketBd.toLocaleString("ru-RU")} B$.\nТы остаёшься во фракции, пока кого-то не купят. При покупке другой фракцией тебе 20% победной ставки на личный B$. Свою фракцию тоже могут выкупить.`,
+    );
+    if (!ok) return;
+    setSelfBusy(true);
+    setErr("");
+    try {
+      const res = await fetch(
+        `/api/factions/${encodeURIComponent(slug)}/auction`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ op: "self_list" }),
+        },
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        until?: string;
+        factionName?: string;
+      };
+      if (!res.ok) {
+        if (json.error === "contract_active") {
+          setContractBlockOpen(true);
+          return;
+        }
+        setErr(json.message || json.error || "Не удалось выставить");
+        return;
+      }
+      await load();
+    } catch {
+      setErr("Сеть недоступна");
+    } finally {
+      setSelfBusy(false);
+    }
+  }
 
   async function run(op: string, body: Record<string, unknown>) {
     setBusy(true);
@@ -174,6 +234,7 @@ export function FactionHrPanel({
     ? data.salaryPresets
     : [10, 20, 30, 40, 50, 60, 70];
   const manage = canManage && data.canManage;
+  const selfList = data.selfList || null;
 
   return (
     <div className="faction-hr">
@@ -191,6 +252,8 @@ export function FactionHrPanel({
             20% стоимости → личный B$ игрока + письмо от фракции
             {" · "}
             ЗП % от гринда — в 01:00 или при ручном закрытии ночи
+            {" · "}
+            сам на аукцион: личный B$ ≥ рыночной стоимости (без контракта)
           </p>
         </div>
       </div>
@@ -246,6 +309,12 @@ export function FactionHrPanel({
                   const active = data.contracts.find(
                     (c) => c.userId === m.userId && c.status === "ACTIVE",
                   );
+                  const isMe = Boolean(
+                    selfList?.meUserId && selfList.meUserId === m.userId,
+                  );
+                  const showSelfBtn =
+                    isMe &&
+                    Boolean(selfList?.onAuction || selfList?.enoughBalance);
                   return (
                     <tr key={m.userId}>
                       <td>
@@ -265,38 +334,63 @@ export function FactionHrPanel({
                         {active ? fmtDate(active.endsAt) : "—"}
                       </td>
                       <td>
-                        {manage ? (
-                          active ? (
-                            <button
-                              type="button"
-                              className="btn"
-                              disabled={busy}
-                              onClick={() =>
-                                void run("cancel_contract", {
-                                  contractId: active.id,
-                                })
-                              }
-                            >
-                              Снять
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn primary"
-                              disabled={busy}
-                              onClick={() => {
-                                const cut = Math.floor(m.playerValue * 0.2);
-                                const ok = window.confirm(
-                                  `Подписать контракт с ${m.nick} на 30 календарных дней?\nС казны спишется ${m.playerValue.toLocaleString("ru-RU")} B$ (оценка игрока).\nИгроку на личный баланс: ${cut.toLocaleString("ru-RU")} B$ (20%) + письмо от фракции.\nДо конца срока игрок не сможет выйти за свои B$.`,
-                                );
-                                if (!ok) return;
-                                void run("sign_contract", { userId: m.userId });
-                              }}
-                            >
-                              Подписать
-                            </button>
-                          )
-                        ) : null}
+                        <div className="faction-hr-actions">
+                          {manage ? (
+                            active ? (
+                              <button
+                                type="button"
+                                className="btn"
+                                disabled={busy}
+                                onClick={() =>
+                                  void run("cancel_contract", {
+                                    contractId: active.id,
+                                  })
+                                }
+                              >
+                                Снять
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn primary"
+                                disabled={busy}
+                                onClick={() => {
+                                  const cut = Math.floor(m.playerValue * 0.2);
+                                  const ok = window.confirm(
+                                    `Подписать контракт с ${m.nick} на 30 календарных дней?\nС казны спишется ${m.playerValue.toLocaleString("ru-RU")} B$ (оценка игрока).\nИгроку на личный баланс: ${cut.toLocaleString("ru-RU")} B$ (20%) + письмо от фракции.\nДо конца срока игрок не сможет выйти за свои B$.`,
+                                  );
+                                  if (!ok) return;
+                                  void run("sign_contract", {
+                                    userId: m.userId,
+                                  });
+                                }}
+                              >
+                                Подписать
+                              </button>
+                            )
+                          ) : null}
+                          {showSelfBtn ? (
+                            selfList?.onAuction ? (
+                              <span className="xfer-pill is-sell">на аукционе</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn"
+                                disabled={selfBusy}
+                                title={
+                                  selfList?.contract
+                                    ? "Контракт блокирует самовыставление"
+                                    : selfList?.enoughBalance
+                                      ? "Выставить себя на аукцион"
+                                      : "Нужен личный B$ ≥ рыночной стоимости"
+                                }
+                                onClick={() => void selfListToAuction()}
+                              >
+                                На аукцион
+                              </button>
+                            )
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -519,6 +613,53 @@ export function FactionHrPanel({
           </p>
           <FactionTransfers slug={slug} canManage={canManage} scope="playerEarn" />
         </div>
+      ) : null}
+
+      {contractBlockOpen && selfList?.contract ? (
+        <DraggableModal
+          open
+          closeOnBackdrop
+          onClose={() => setContractBlockOpen(false)}
+        >
+          <header
+            className="profile-match-modal-head"
+            data-drag-handle
+            title="Перетащить окно"
+          >
+            <div>
+              <h2 className="profile-mail-modal-title">Контракт активен</h2>
+              <p className="muted">Самовыставление на аукцион недоступно</p>
+            </div>
+            <button
+              type="button"
+              className="profile-match-modal-close"
+              onClick={() => setContractBlockOpen(false)}
+            >
+              ×
+            </button>
+          </header>
+          <div className="profile-match-modal-body">
+            <p>
+              У вас контракт с фракцией{" "}
+              <strong>«{selfList.contract.factionName}»</strong> до{" "}
+              <strong>{fmtDate(selfList.contract.endsAt)}</strong>.
+            </p>
+            <p className="muted">
+              Пока контракт жив, себя на аукцион выставить нельзя. После окончания
+              срока (или если штаб снимет контракт) кнопка снова заработает, если
+              на личном балансе хватает рыночной стоимости.
+            </p>
+            <div className="clan-invite-row" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setContractBlockOpen(false)}
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </DraggableModal>
       ) : null}
     </div>
   );

@@ -22,6 +22,8 @@ export const AUCTION_SENDER_KIND = "auction";
 export const AUCTION_SENDER_LABEL = "Аукцион";
 export const AUCTION_HOURS = 16;
 export const AUCTION_RECRUIT_CUT_RATIO = 0.1;
+/** Самовыставление: доля победной ставки → личный B$ игрока. */
+export const AUCTION_SELF_CUT_RATIO = 0.2;
 
 export function auctionEndsAt(from = new Date()): Date {
   return new Date(from.getTime() + AUCTION_HOURS * 60 * 60 * 1000);
@@ -369,6 +371,9 @@ export async function settleAuctionLot(lotId: string): Promise<{
     ? loadRecruitDossierBySteam(lot.user.steamId)
     : null;
 
+  const lotKind = lot.lotKind || "recruit";
+  const isSelfList = lotKind === "self_list";
+
   if (!winner) {
     await prisma.factionAuctionLot.update({
       where: { id: lot.id },
@@ -377,10 +382,12 @@ export async function settleAuctionLot(lotId: string): Promise<{
     const recipients = await staffIdsForAuctionFactions();
     await mailAuction({
       authorId: keech.id,
-      recipientIds: recipients,
+      recipientIds: isSelfList ? [...recipients, lot.userId] : recipients,
       title: `Аукцион · ${nick} · без ставок`,
       body: [
-        `Лот на ${nick} закрыт без ставок. Игрок остаётся свободным агентом.`,
+        isSelfList
+          ? `Лот самовыставления ${nick} закрыт без ставок. Игрок остаётся в своей фракции.`
+          : `Лот на ${nick} закрыт без ставок. Игрок остаётся свободным агентом.`,
         "",
         "— Аукцион",
       ].join("\n"),
@@ -389,8 +396,8 @@ export async function settleAuctionLot(lotId: string): Promise<{
     return { ok: true, reason: "no_bids" };
   }
 
-  if (lot.user.factionMembership) {
-    // Уже во фракции — вернуть все ставки
+  if (lot.user.factionMembership && !isSelfList) {
+    // Рекрут/штраф: уже во фракции — вернуть все ставки
     await refundAllBids(lot.id, active.map((b) => b.id));
     await prisma.factionAuctionLot.update({
       where: { id: lot.id },
@@ -400,8 +407,12 @@ export async function settleAuctionLot(lotId: string): Promise<{
   }
 
   const winAmt = winner.amountBd;
-  const recruitCut = Math.max(0, Math.floor(winAmt * AUCTION_RECRUIT_CUT_RATIO));
+  const cutRatio = isSelfList ? AUCTION_SELF_CUT_RATIO : AUCTION_RECRUIT_CUT_RATIO;
+  const recruitCut = Math.max(0, Math.floor(winAmt * cutRatio));
   const losers = active.filter((b) => b.id !== winner.id);
+  const sourceFactionId = lot.sourceFactionId || null;
+  const sameFaction =
+    isSelfList && sourceFactionId && sourceFactionId === winner.factionId;
 
   await ensureAuctionBank();
 
@@ -451,13 +462,26 @@ export async function settleAuctionLot(lotId: string): Promise<{
       });
     }
 
-    await tx.factionMember.create({
-      data: {
-        factionId: winner.factionId,
-        userId: lot.userId,
-        seat: "MEMBER",
-      },
-    });
+    if (isSelfList) {
+      if (!sameFaction) {
+        await tx.factionMember.deleteMany({ where: { userId: lot.userId } });
+        await tx.factionMember.create({
+          data: {
+            factionId: winner.factionId,
+            userId: lot.userId,
+            seat: "MEMBER",
+          },
+        });
+      }
+    } else {
+      await tx.factionMember.create({
+        data: {
+          factionId: winner.factionId,
+          userId: lot.userId,
+          seat: "MEMBER",
+        },
+      });
+    }
     await tx.factionInvite.updateMany({
       where: { userId: lot.userId, status: { in: ["PENDING", "ACCEPTED"] } },
       data: { status: "CANCELLED" },
@@ -474,16 +498,18 @@ export async function settleAuctionLot(lotId: string): Promise<{
     });
   });
 
-  await logFaction("join", {
-    actorId: keech.id,
-    actorNick: "Аукцион",
-    targetId: lot.userId,
-    targetNick: nick,
-    factionName: winner.faction.name,
-    clanId: winner.faction.clanId,
-    how: "Аукцион",
-    reason: `победная ставка ${winAmt.toLocaleString("ru-RU")} ${BD_MARK}`,
-  });
+  if (!sameFaction) {
+    await logFaction("join", {
+      actorId: keech.id,
+      actorNick: "Аукцион",
+      targetId: lot.userId,
+      targetNick: nick,
+      factionName: winner.faction.name,
+      clanId: winner.faction.clanId,
+      how: isSelfList ? "Аукцион (сам)" : "Аукцион",
+      reason: `победная ставка ${winAmt.toLocaleString("ru-RU")} ${BD_MARK}`,
+    });
+  }
 
   const staffWinner = await listSriFactions().then(
     (fs) => fs.find((f) => f.id === winner.factionId),
@@ -494,14 +520,19 @@ export async function settleAuctionLot(lotId: string): Promise<{
     keech.id,
     lot.userId,
   ];
+  const cutPct = Math.round(cutRatio * 100);
   await mailAuction({
     authorId: keech.id,
     recipientIds: winnerRecipients,
-    title: `Аукцион · ${nick} → ${winner.faction.name}`,
+    title: sameFaction
+      ? `Аукцион · ${nick} · остаётся в «${winner.faction.name}»`
+      : `Аукцион · ${nick} → ${winner.faction.name}`,
     body: [
-      `Победа: «${winner.faction.name}» забрала ${nick} за ${winAmt.toLocaleString("ru-RU")} ${BD_MARK}.`,
+      sameFaction
+        ? `Победа своей фракции: «${winner.faction.name}» выкупила ${nick} за ${winAmt.toLocaleString("ru-RU")} ${BD_MARK} — игрок остаётся в составе.`
+        : `Победа: «${winner.faction.name}» забрала ${nick} за ${winAmt.toLocaleString("ru-RU")} ${BD_MARK}.`,
       recruitCut > 0
-        ? `Рекруту на личный баланс: ${recruitCut.toLocaleString("ru-RU")} ${BD_MARK} (10%).`
+        ? `Игроку на личный баланс: ${recruitCut.toLocaleString("ru-RU")} ${BD_MARK} (${cutPct}%).`
         : null,
       `Остальное — в банк Аукциона.`,
       "",
@@ -622,6 +653,7 @@ export async function listAuctionBoard(opts?: { factionId?: string }) {
     bankBalance: bank?.blueberryBalance ?? 0,
     hours: AUCTION_HOURS,
     recruitCutRatio: AUCTION_RECRUIT_CUT_RATIO,
+    selfCutRatio: AUCTION_SELF_CUT_RATIO,
     /** Фиксированный пресет 5 фракций для сетки ставок. */
     presetFactions: [...SRI_FACTION_NAMES],
     lots: lots.map((l) => {
@@ -665,6 +697,140 @@ export async function listAuctionBoard(opts?: { factionId?: string }) {
         })),
       };
     }),
+  };
+}
+
+/**
+ * Игрок сам выставляется на аукцион, оставаясь во фракции до покупки.
+ * Нужен личный B$ ≥ рыночной стоимости; активный контракт блокирует.
+ */
+export async function openSelfListAuction(opts: {
+  userId: string;
+  factionId: string;
+}): Promise<
+  | {
+      ok: true;
+      lotId: string;
+      nick: string;
+      minBidBd: number;
+      endsAt: string;
+    }
+  | { ok: false; error: string; until?: string; factionName?: string }
+> {
+  const { estimatePlayerPrice, ESTIMATE_BASE } = await import(
+    "@/lib/blueberryDollar"
+  );
+  const { activeContractForUser } = await import("@/lib/factionHr");
+  const keech = await keechUser();
+  if (!keech) return { ok: false, error: "no_keech" };
+
+  const member = await prisma.factionMember.findFirst({
+    where: { factionId: opts.factionId, userId: opts.userId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          nick: true,
+          name: true,
+          steamName: true,
+          steamId: true,
+          blueberryBalance: true,
+        },
+      },
+      faction: { select: { id: true, name: true, clanId: true } },
+    },
+  });
+  if (!member) return { ok: false, error: "not_member" };
+
+  const contract = await activeContractForUser(opts.userId);
+  if (contract) {
+    const fac = await prisma.faction.findUnique({
+      where: { id: contract.factionId },
+      select: { name: true },
+    });
+    return {
+      ok: false,
+      error: "contract_active",
+      until: contract.endsAt.toLocaleDateString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }),
+      factionName: fac?.name || "фракция",
+    };
+  }
+
+  const openLot = await prisma.factionAuctionLot.findFirst({
+    where: { userId: opts.userId, status: "OPEN" },
+  });
+  if (openLot) return { ok: false, error: "already_on_auction" };
+
+  const grindRows = await prisma.factionLedgerEntry.groupBy({
+    by: ["userId"],
+    where: { userId: opts.userId, kind: "grind", amount: { gt: 0 } },
+    _sum: { amount: true },
+  });
+  const grindBroughtBd = Math.max(0, Math.round(grindRows[0]?._sum.amount || 0));
+  const minBidBd = estimatePlayerPrice({ grindBroughtBd });
+  const personal = Math.max(0, member.user.blueberryBalance || 0);
+  if (personal < minBidBd) return { ok: false, error: "balance_low" };
+
+  const nick = personLabel(member.user);
+  const startsAt = new Date();
+  const endsAt = auctionEndsAt(startsAt);
+
+  const lot = await prisma.factionAuctionLot.create({
+    data: {
+      userId: opts.userId,
+      status: "OPEN",
+      startsAt,
+      endsAt,
+      lotKind: "self_list",
+      minBidBd,
+      sourceFactionId: opts.factionId,
+      note: `self_list:${opts.factionId}`,
+    },
+  });
+
+  const recipients = await staffIdsForAuctionFactions();
+  await mailAuction({
+    authorId: keech.id,
+    recipientIds: [...recipients, opts.userId],
+    title: `Аукцион · сам · ${nick}`,
+    body: [
+      `${nick} выставил себя на аукцион (пока остаётся в «${member.faction.name}»).`,
+      "",
+      `Рыночная стоимость / мин. ставка: ${minBidBd.toLocaleString("ru-RU")} ${BD_MARK}`,
+      `(база ${ESTIMATE_BASE.toLocaleString("ru-RU")} + гринд ${grindBroughtBd.toLocaleString("ru-RU")}).`,
+      `Торги: ${AUCTION_HOURS} ч · до ${mskDateTimeLabel(endsAt)} (МСК).`,
+      `При покупке другой фракцией игроку — ${Math.round(AUCTION_SELF_CUT_RATIO * 100)}% победной ставки на личный B$.`,
+      "Свою фракцию тоже можно выкупить.",
+      "",
+      "Ставки — в Менеджмент → Аукцион.",
+      "",
+      "— Аукцион",
+    ].join("\n"),
+    sourceKey: `auction:self:${lot.id}`,
+  });
+
+  await writeActionLog({
+    category: "faction",
+    action: "faction_auction_self_list",
+    message: `${nick} сам на аукцион из «${member.faction.name}» (мин. ${minBidBd} ${BD_MARK}).`,
+    actorId: opts.userId,
+    targetId: opts.userId,
+    targetNick: nick,
+    clanId: member.faction.clanId,
+    clanTag: "BB",
+    meta: { lotId: lot.id, minBidBd },
+  });
+
+  return {
+    ok: true,
+    lotId: lot.id,
+    nick,
+    minBidBd,
+    endsAt: endsAt.toISOString(),
   };
 }
 

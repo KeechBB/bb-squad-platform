@@ -68,10 +68,58 @@ export async function GET(_req: Request, ctx: Ctx) {
       .map((c) => [c.userId, c.id]),
   );
 
+  const meId = gate.meId;
+  const meMember = meId ? members.find((m) => m.userId === meId) : null;
+  const [meUser, meOpenLot, meContractRow] = await Promise.all([
+    meId
+      ? prisma.user.findUnique({
+          where: { id: meId },
+          select: { blueberryBalance: true },
+        })
+      : null,
+    meId
+      ? prisma.factionAuctionLot.findFirst({
+          where: { userId: meId, status: "OPEN" },
+          select: { id: true, lotKind: true, endsAt: true, minBidBd: true },
+        })
+      : null,
+    meId
+      ? prisma.factionPlayerContract.findFirst({
+          where: {
+            userId: meId,
+            status: "ACTIVE",
+            endsAt: { gt: new Date() },
+          },
+          orderBy: { endsAt: "desc" },
+          include: { faction: { select: { name: true } } },
+        })
+      : null,
+  ]);
+  const personalBd = Math.max(0, meUser?.blueberryBalance || 0);
+  const marketBd = meMember?.playerValue ?? 0;
+  const selfList = meMember
+    ? {
+        meUserId: meId,
+        personalBd,
+        marketBd,
+        enoughBalance: personalBd >= marketBd && marketBd > 0,
+        onAuction: Boolean(meOpenLot),
+        lotId: meOpenLot?.id || null,
+        lotKind: meOpenLot?.lotKind || null,
+        contract: meContractRow
+          ? {
+              factionName: meContractRow.faction.name,
+              endsAt: meContractRow.endsAt.toISOString(),
+            }
+          : null,
+      }
+    : null;
+
   return NextResponse.json({
     canManage: gate.staff,
     treasury: gate.loaded.view!.blueberryBalance,
     salaryPresets: SALARY_PRESETS,
+    selfList,
     members: members.map((m) => ({
       userId: m.userId,
       nick: m.nick,
