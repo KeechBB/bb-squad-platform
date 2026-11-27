@@ -1,0 +1,505 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BdAmount } from "@/components/BdMark";
+import { useFitTablePage } from "@/lib/useFitTablePage";
+
+type HrMember = {
+  userId: string;
+  nick: string;
+  roleName: string;
+  mainKit: string;
+  playerValue: number;
+  salaryPct: number;
+  hasActiveContract: boolean;
+};
+
+type HrContract = {
+  id: string;
+  userId: string;
+  nick: string;
+  steamId: string;
+  costBd: number;
+  status: string;
+  startsAt: string;
+  endsAt: string;
+  note: string | null;
+};
+
+type HrPayout = {
+  id: string;
+  userId: string;
+  nick: string;
+  steamId: string;
+  windowId: string;
+  pct: number;
+  grindBd: number;
+  paidBd: number;
+  createdAt: string;
+};
+
+type HrPayload = {
+  canManage: boolean;
+  treasury: number;
+  salaryPresets: number[];
+  members: HrMember[];
+  contracts: HrContract[];
+  payouts: HrPayout[];
+  error?: string;
+};
+
+type HrTab = "contracts" | "salaries" | "history";
+
+function fmtDate(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function fmtWhen(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function statusRu(s: string) {
+  if (s === "ACTIVE") return "Активен";
+  if (s === "EXPIRED") return "Истёк";
+  if (s === "CANCELLED") return "Отменён";
+  return s;
+}
+
+export function FactionHrPanel({
+  slug,
+  canManage,
+}: {
+  slug: string;
+  canManage: boolean;
+}) {
+  const [data, setData] = useState<HrPayload | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<HrTab>("contracts");
+  const [nickFilter, setNickFilter] = useState("");
+  const nickKey = nickFilter.trim().toLowerCase();
+
+  const load = useCallback(async () => {
+    setErr("");
+    try {
+      const res = await fetch(`/api/factions/${encodeURIComponent(slug)}/hr`, {
+        cache: "no-store",
+      });
+      const json = (await res.json()) as HrPayload;
+      if (!res.ok) {
+        setErr(json.error || "Не удалось загрузить");
+        setData(null);
+        return;
+      }
+      setData(json);
+    } catch {
+      setErr("Сеть недоступна");
+      setData(null);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function run(op: string, body: Record<string, unknown>) {
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await fetch(`/api/factions/${encodeURIComponent(slug)}/hr`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op, ...body }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setErr(json.error || "Ошибка");
+        return;
+      }
+      await load();
+    } catch {
+      setErr("Сеть недоступна");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const payoutsFiltered = useMemo(() => {
+    const rows = data?.payouts ?? [];
+    if (!nickKey) return rows;
+    return rows.filter(
+      (p) =>
+        p.nick.toLowerCase().includes(nickKey) ||
+        p.steamId.toLowerCase().includes(nickKey) ||
+        p.userId.toLowerCase().includes(nickKey),
+    );
+  }, [data?.payouts, nickKey]);
+
+  const histPage = useFitTablePage(
+    payoutsFiltered.length,
+    Boolean(data) && tab === "history",
+  );
+  useEffect(() => {
+    histPage.setPage(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nickKey]);
+
+  const histVisible = payoutsFiltered.slice(
+    histPage.safePage * histPage.pageSize,
+    histPage.safePage * histPage.pageSize + histPage.pageSize,
+  );
+
+  if (!data && !err) {
+    return <p className="muted">Загрузка контрактов и зарплат…</p>;
+  }
+  if (!data) {
+    return <p className="error">{err || "Нет данных"}</p>;
+  }
+
+  const presets = data.salaryPresets?.length
+    ? data.salaryPresets
+    : [10, 20, 30, 40, 50, 60, 70];
+  const manage = canManage && data.canManage;
+
+  return (
+    <div className="faction-hr">
+      <div className="faction-hr-head">
+        <div>
+          <h3 className="xfer-title">Контракты и зарплаты</h3>
+          <p className="muted xfer-sub">
+            Казна:{" "}
+            <strong>
+              <BdAmount n={data.treasury} />
+            </strong>
+            {" · "}
+            контракт = бронь на 30 дней (стоимость игрока)
+            {" · "}
+            ЗП % от гринда — в 01:00 или при ручном закрытии ночи
+          </p>
+        </div>
+      </div>
+
+      <div className="admin-tabs clan-tabs xfer-subtabs" role="tablist">
+        <button
+          type="button"
+          className={`admin-tab${tab === "contracts" ? " active" : ""}`}
+          onClick={() => setTab("contracts")}
+        >
+          Контракты
+        </button>
+        <button
+          type="button"
+          className={`admin-tab${tab === "salaries" ? " active" : ""}`}
+          onClick={() => setTab("salaries")}
+        >
+          Зарплаты %
+        </button>
+        <button
+          type="button"
+          className={`admin-tab${tab === "history" ? " active" : ""}`}
+          onClick={() => setTab("history")}
+        >
+          История выплат
+        </button>
+      </div>
+
+      {err ? <p className="xfer-err">{err}</p> : null}
+
+      {tab === "contracts" ? (
+        <div className="xfer-tab-body xfer-tables">
+          <div className="xfer-table-wrap">
+            <table className="xfer-table">
+              <thead>
+                <tr>
+                  <th>Игрок</th>
+                  <th>Стоимость</th>
+                  <th>Контракт</th>
+                  <th>До</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {data.members.map((m) => {
+                  const active = data.contracts.find(
+                    (c) => c.userId === m.userId && c.status === "ACTIVE",
+                  );
+                  return (
+                    <tr key={m.userId}>
+                      <td>
+                        <strong className="xfer-nick">{m.nick}</strong>
+                      </td>
+                      <td>
+                        <BdAmount n={m.playerValue} />
+                      </td>
+                      <td>
+                        {active ? (
+                          <span className="xfer-pill is-buy">Активен</span>
+                        ) : (
+                          <span className="muted">нет</span>
+                        )}
+                      </td>
+                      <td className="muted">
+                        {active ? fmtDate(active.endsAt) : "—"}
+                      </td>
+                      <td>
+                        {manage ? (
+                          active ? (
+                            <button
+                              type="button"
+                              className="btn"
+                              disabled={busy}
+                              onClick={() =>
+                                void run("cancel_contract", {
+                                  contractId: active.id,
+                                })
+                              }
+                            >
+                              Снять
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn primary"
+                              disabled={busy}
+                              onClick={() => {
+                                const ok = window.confirm(
+                                  `Подписать контракт с ${m.nick} на 30 дней?\nС казны спишется ${m.playerValue.toLocaleString("ru-RU")} B$ (оценка игрока).\nИгрок не сможет выйти за свои B$ до конца срока.`,
+                                );
+                                if (!ok) return;
+                                void run("sign_contract", { userId: m.userId });
+                              }}
+                            >
+                              Подписать
+                            </button>
+                          )
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <h4 className="faction-hr-sub">История контрактов</h4>
+          <div className="xfer-table-wrap">
+            <table className="xfer-table">
+              <thead>
+                <tr>
+                  <th>Игрок</th>
+                  <th>Статус</th>
+                  <th>Цена</th>
+                  <th>С</th>
+                  <th>До</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.contracts.map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <strong className="xfer-nick">{c.nick}</strong>
+                    </td>
+                    <td>{statusRu(c.status)}</td>
+                    <td>
+                      <BdAmount n={c.costBd} />
+                    </td>
+                    <td className="muted">{fmtDate(c.startsAt)}</td>
+                    <td className="muted">{fmtDate(c.endsAt)}</td>
+                  </tr>
+                ))}
+                {!data.contracts.length ? (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Контрактов пока нет.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {tab === "salaries" ? (
+        <div className="xfer-tab-body xfer-tables">
+          <p className="muted faction-hr-hint">
+            Пресет % от гринда игрока за ночное окно. Выплата на личный B$ в 01:00
+            МСК (или раньше, если ночь закрыли вручную). Деньги списываются с
+            казны фракции.
+          </p>
+          <div className="xfer-table-wrap">
+            <table className="xfer-table">
+              <thead>
+                <tr>
+                  <th>Игрок</th>
+                  <th>Сейчас</th>
+                  <th>Пресет</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.members.map((m) => (
+                  <tr key={m.userId}>
+                    <td>
+                      <strong className="xfer-nick">{m.nick}</strong>
+                    </td>
+                    <td>
+                      {m.salaryPct > 0 ? (
+                        <strong>{m.salaryPct}%</strong>
+                      ) : (
+                        <span className="muted">выкл</span>
+                      )}
+                    </td>
+                    <td>
+                      {manage ? (
+                        <div className="faction-hr-pct-row">
+                          <button
+                            type="button"
+                            className={`faction-hr-pct${m.salaryPct === 0 ? " is-on" : ""}`}
+                            disabled={busy}
+                            onClick={() =>
+                              void run("set_salary", { userId: m.userId, pct: 0 })
+                            }
+                          >
+                            0
+                          </button>
+                          {presets.map((p) => (
+                            <button
+                              key={p}
+                              type="button"
+                              className={`faction-hr-pct${m.salaryPct === p ? " is-on" : ""}`}
+                              disabled={busy}
+                              onClick={() =>
+                                void run("set_salary", {
+                                  userId: m.userId,
+                                  pct: p,
+                                })
+                              }
+                            >
+                              {p}%
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="muted">только штаб</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {tab === "history" ? (
+        <div className="xfer-tab-body xfer-tables">
+          <div className="xfer-nick-filter">
+            <label className="xfer-nick-filter-label" htmlFor="hr-payout-nick">
+              Ник / Steam ID
+            </label>
+            <input
+              id="hr-payout-nick"
+              className="xfer-nick-filter-input"
+              type="search"
+              value={nickFilter}
+              onChange={(e) => setNickFilter(e.target.value)}
+              placeholder="Например Bahus или 7656119…"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            {nickKey ? (
+              <button
+                type="button"
+                className="xfer-nick-filter-clear"
+                onClick={() => setNickFilter("")}
+              >
+                Сброс
+              </button>
+            ) : null}
+          </div>
+          <div className="xfer-fit" ref={histPage.fitRef}>
+            <div className="xfer-table-wrap">
+              <table className="xfer-table">
+                <thead>
+                  <tr>
+                    <th>Когда</th>
+                    <th>Игрок</th>
+                    <th>Steam</th>
+                    <th>%</th>
+                    <th>Гринд</th>
+                    <th>Выплачено</th>
+                    <th>Ночь</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {histVisible.map((p) => (
+                    <tr key={p.id}>
+                      <td className="muted">{fmtWhen(p.createdAt)}</td>
+                      <td>
+                        <strong className="xfer-nick">{p.nick}</strong>
+                      </td>
+                      <td className="muted">{p.steamId || "—"}</td>
+                      <td>{p.pct}%</td>
+                      <td>
+                        <BdAmount n={p.grindBd} />
+                      </td>
+                      <td className="is-plus">
+                        <BdAmount n={p.paidBd} />
+                      </td>
+                      <td className="muted">{p.windowId}</td>
+                    </tr>
+                  ))}
+                  {!payoutsFiltered.length ? (
+                    <tr>
+                      <td colSpan={7} className="muted">
+                        {nickKey
+                          ? "Нет выплат по фильтру."
+                          : "Выплат пока нет."}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {histPage.pageCount > 1 ? (
+            <div className="faction-roster-pager xfer-pager">
+              <button
+                type="button"
+                className="btn"
+                disabled={histPage.safePage <= 0}
+                onClick={histPage.goPrev}
+              >
+                Назад
+              </button>
+              <span className="muted">
+                стр. {histPage.safePage + 1}/{histPage.pageCount}
+              </span>
+              <button
+                type="button"
+                className="btn"
+                disabled={histPage.safePage >= histPage.pageCount - 1}
+                onClick={histPage.goNext}
+              >
+                Дальше
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}

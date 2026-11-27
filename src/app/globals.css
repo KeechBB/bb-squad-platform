@@ -29213,6 +29213,54 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+/* Контракты и зарплаты (кнопка 5) */
+.faction-hr {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.faction-hr-head {
+  flex: 0 0 auto;
+}
+.faction-hr-sub {
+  margin: 14px 0 8px;
+  font-size: 0.92rem;
+}
+.faction-hr-hint {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+}
+.faction-hr-pct-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.faction-hr-pct {
+  padding: 0.2rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  background: rgba(15, 23, 42, 0.65);
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.faction-hr-pct:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.65);
+}
+.faction-hr-pct.is-on {
+  border-color: rgba(52, 211, 153, 0.85);
+  background: rgba(6, 78, 59, 0.55);
+  color: #bbf7d0;
+}
+.faction-hr-pct:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .faction-mgmt-denied-modal {
   max-width: 440px;
 }

@@ -134,6 +134,10 @@ model User {
   factionInvitesSent         FactionInvite[] @relation("FactionInviter")
   factionRaceSriBans         FactionRaceSriBan[]
   factionNightBets           FactionNightBet[]
+  factionContracts           FactionPlayerContract[] @relation("ContractPlayer")
+  factionContractsSigned     FactionPlayerContract[] @relation("ContractSigner")
+  factionSalarySettings      FactionPlayerSalary[]
+  factionSalaryPayouts       FactionSalaryPayout[]
   bbCoinTxs                  BbCoinTx[]
   bbCoinOrders               BbCoinOrder[]
   nickPatchStocks            NickPatchStock[]
@@ -630,6 +634,9 @@ model Faction {
   raceSriBans FactionRaceSriBan[]
   nightBetsFrom FactionNightBet[] @relation("NightBetFrom")
   nightBetsPick FactionNightBet[] @relation("NightBetPick")
+  playerContracts FactionPlayerContract[]
+  playerSalaries  FactionPlayerSalary[]
+  salaryPayouts   FactionSalaryPayout[]
 
   @@index([clanId])
 }
@@ -908,6 +915,69 @@ model FactionMember {
   @@unique([userId])
   @@unique([factionId, userId])
   @@index([factionId, joinedAt])
+}
+
+/// Месячный контракт: игрок не может выйти за свои B$ до конца срока.
+model FactionPlayerContract {
+  id             String   @id @default(cuid())
+  factionId      String
+  faction        Faction  @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation("ContractPlayer", fields: [userId], references: [id], onDelete: Cascade)
+  signedByUserId String
+  signedBy       User     @relation("ContractSigner", fields: [signedByUserId], references: [id], onDelete: Cascade)
+  /// Стоимость брони = оценка игрока на момент подписи.
+  costBd         Int
+  startsAt       DateTime @default(now())
+  endsAt         DateTime
+  /// ACTIVE | EXPIRED | CANCELLED
+  status         String   @default("ACTIVE")
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([factionId, status])
+  @@index([userId, status])
+  @@index([endsAt])
+}
+
+/// % зарплаты от гринда игрока в казну (пресеты 10…70).
+model FactionPlayerSalary {
+  id        String   @id @default(cuid())
+  factionId String
+  faction   Faction  @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 0 = выкл; иначе 10|20|30|40|50|60|70
+  pct       Int      @default(0)
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([factionId, userId])
+  @@index([factionId])
+  @@index([userId])
+}
+
+/// История выплат зарплаты (после 01:00 / ручного закрытия ночи).
+model FactionSalaryPayout {
+  id        String   @id @default(cuid())
+  factionId String
+  faction   Faction  @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Окно ночи (YMD training-day), напр. 2026-11-26
+  windowId  String
+  pct       Int
+  grindBd   Int
+  paidBd    Int
+  /// Идемпотентность: salary:{windowId}:{userId}
+  sourceKey String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([factionId, createdAt])
+  @@index([userId, createdAt])
+  @@index([windowId])
 }
 
 /// Игроки соперника со скринов/логов КВ до регистрации на площадке.

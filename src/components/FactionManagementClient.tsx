@@ -10,6 +10,7 @@ import {
   FactionRaceBoard,
 } from "@/components/FactionBoards";
 import { FactionTransfers } from "@/components/FactionTransfers";
+import { FactionHrPanel } from "@/components/FactionHrPanel";
 import { BdAmount } from "@/components/BdMark";
 
 function formatJoinedAt(iso: string) {
@@ -22,7 +23,13 @@ function formatJoinedAt(iso: string) {
   });
 }
 
-type MgmtPanel = "race" | "nightbets" | "transfers" | "economy" | null;
+type MgmtPanel =
+  | "race"
+  | "nightbets"
+  | "transfers"
+  | "economy"
+  | "hr"
+  | null;
 
 type NavBtn = {
   id: number;
@@ -36,7 +43,7 @@ const NAV_BUTTONS: NavBtn[] = [
   { id: 2, label: "Ставки фракций", panel: "nightbets", ready: true },
   { id: 3, label: "Трансферы", panel: "transfers", ready: true },
   { id: 4, label: "Экономика фракции", panel: "economy", ready: true },
-  { id: 5, label: "Кнопка 5", panel: null, ready: false },
+  { id: 5, label: "Контракты и зарплаты", panel: "hr", ready: true },
   { id: 6, label: "Кнопка 6", panel: null, ready: false },
   { id: 7, label: "Кнопка 7", panel: null, ready: false },
   { id: 8, label: "Кнопка 8", panel: null, ready: false },
@@ -312,6 +319,12 @@ export function FactionManagementClient({
                     slug={view.slug}
                     canManage={view.canManage || view.keech}
                     scope="economy"
+                  />
+                ) : null}
+                {panel === "hr" ? (
+                  <FactionHrPanel
+                    slug={view.slug}
+                    canManage={view.canManage || view.keech}
                   />
                 ) : null}
                 {!panel ? (

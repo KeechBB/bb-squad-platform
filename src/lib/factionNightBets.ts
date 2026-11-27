@@ -439,6 +439,15 @@ export async function settleNightBetWindow(
       },
     });
   });
+
+  // Зарплаты % от гринда за окно → личный B$ (идемпотентно).
+  try {
+    const { paySalariesForNightWindow } = await import("@/lib/factionHr");
+    await paySalariesForNightWindow(bounds);
+  } catch (e) {
+    console.error("night salary payout failed", bounds.id, e);
+  }
+
   return { settled: true };
 }
 
