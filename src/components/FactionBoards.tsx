@@ -979,7 +979,7 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
   return (
     <div className="faction-race">
       <div className="faction-race-head">
-        <p className="faction-race-dates">{label || "21.11 00:00 — 28.11 00:00 МСК"}</p>
+        <p className="faction-race-dates">{label || "21.11 00:00 — 28.11 01:00 МСК"}</p>
         <p className="faction-race-goal muted">
           Гринд казны за окно · у каждой фракции своя цель (±5% после недели). Легион вне гонки.
           После дедлайна фракции без квоты выбирают игрока на{" "}

@@ -3,6 +3,8 @@
 /** 21.11.2026 00:00 МСК — старт эпохи недельных окон. */
 export const RACE_EPOCH_START = new Date("2026-11-20T21:00:00.000Z");
 export const RACE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+/** Хвост после календарных 00:00: до конца ночной TR (21:00–01:00 МСК). */
+export const RACE_TRAIN_TAIL_MS = 60 * 60 * 1000;
 export const RACE_GRACE_MS = 24 * 60 * 60 * 1000;
 export const RACE_BASE_GOAL = 400_000;
 export const RACE_GOAL_UP = 1.05;
@@ -76,21 +78,48 @@ export function raceMskYmd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function mskHourMinute(d: Date): { h: number; m: number } {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Moscow",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+  return {
+    h: Number(parts.find((p) => p.type === "hour")?.value || "0"),
+    m: Number(parts.find((p) => p.type === "minute")?.value || "0"),
+  };
+}
+
+/**
+ * Недельное окно прогресса: календарные 7×24ч + хвост до 01:00 МСК
+ * (последняя ночная тренировка 7-го дня). Со следующего индекса старт
+ * прогресса сдвигается на +1ч, чтобы хвост прошлой недели не двоился.
+ */
+export function raceWindowByIndex(index: number): RaceWindowBounds {
+  const calendarStart = new Date(RACE_EPOCH_START.getTime() + index * RACE_WINDOW_MS);
+  const calendarEnd = new Date(calendarStart.getTime() + RACE_WINDOW_MS);
+  const start =
+    index === 0
+      ? calendarStart
+      : new Date(calendarStart.getTime() + RACE_TRAIN_TAIL_MS);
+  const end = new Date(calendarEnd.getTime() + RACE_TRAIN_TAIL_MS);
+  return { id: raceMskYmd(calendarStart), index, start, end };
+}
+
 export function raceWindowAt(at: Date = new Date()): RaceWindowBounds | null {
   const ms = at.getTime() - RACE_EPOCH_START.getTime();
   if (ms < 0) return null;
   const index = Math.floor(ms / RACE_WINDOW_MS);
-  const start = new Date(RACE_EPOCH_START.getTime() + index * RACE_WINDOW_MS);
-  const end = new Date(start.getTime() + RACE_WINDOW_MS);
-  return { id: raceMskYmd(start), index, start, end };
+  // 00:00–01:00 после календарной границы — ещё прошлое окно (хвост TR).
+  if (index > 0) {
+    const prev = raceWindowByIndex(index - 1);
+    if (at < prev.end) return prev;
+  }
+  return raceWindowByIndex(index);
 }
 
-export function raceWindowByIndex(index: number): RaceWindowBounds {
-  const start = new Date(RACE_EPOCH_START.getTime() + index * RACE_WINDOW_MS);
-  const end = new Date(start.getTime() + RACE_WINDOW_MS);
-  return { id: raceMskYmd(start), index, start, end };
-}
-
+/** Подпись: «21.11 00:00 — 28.11 01:00 МСК» (конец = после последней TR). */
 export function formatRaceWindowLabel(start: Date, end: Date): string {
   const fmt = (d: Date) => {
     const p = new Intl.DateTimeFormat("ru-RU", {
@@ -102,7 +131,13 @@ export function formatRaceWindowLabel(start: Date, end: Date): string {
     const month = p.find((x) => x.type === "month")?.value || "??";
     return `${day}.${month}`;
   };
-  return `${fmt(start)} 00:00 — ${fmt(end)} 00:00 МСК`;
+  const sh = mskHourMinute(start);
+  const eh = mskHourMinute(end);
+  const calStart =
+    sh.h === 1 && sh.m === 0 ? new Date(start.getTime() - RACE_TRAIN_TAIL_MS) : start;
+  const calEnd =
+    eh.h === 1 && eh.m === 0 ? new Date(end.getTime() - RACE_TRAIN_TAIL_MS) : end;
+  return `${fmt(calStart)} 00:00 — ${fmt(calEnd)} 01:00 МСК`;
 }
 
 export function nextRaceGoal(prev: number, met: boolean): number {

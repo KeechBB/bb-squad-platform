@@ -201,6 +201,54 @@ async function sendMidIfNeeded(bounds: RaceWindowBounds, now: Date) {
   }
 }
 
+/**
+ * Если окно закрыли в 00:00, а хвост TR ещё идёт (до 01:00) —
+ * откатываем premature finalize/grace, возвращаем цель окна, чистим финальные письма.
+ */
+async function reopenIfPrematureFinalize(bounds: RaceWindowBounds, now: Date) {
+  if (now >= bounds.end) return false;
+  const rows = await prisma.factionRaceResult.findMany({
+    where: {
+      windowId: bounds.id,
+      status: { in: ["finalized", "grace"] },
+    },
+    select: { id: true, factionId: true, goal: true, status: true },
+  });
+  if (!rows.length) return false;
+
+  for (const r of rows) {
+    await prisma.factionRaceState.upsert({
+      where: { factionId: r.factionId },
+      create: { factionId: r.factionId, goal: r.goal },
+      update: { goal: r.goal },
+    });
+    await prisma.factionRaceResult.update({
+      where: { id: r.id },
+      data: {
+        status: "open",
+        met: false,
+        graceEndsAt: null,
+        finalMailAt: null,
+        protectedReserveIds: [],
+      },
+    });
+  }
+
+  // Чтобы повторный finalize мог снова отправить корректное письмо
+  await prisma.profileMail.deleteMany({
+    where: { sourceKey: { startsWith: `race:final:${bounds.id}:` } },
+  });
+
+  await writeActionLog({
+    category: "faction",
+    action: "faction_race_reopen",
+    message: `Гонка: окно ${bounds.id} открыто снова до ${bounds.end.toISOString()} (хвост TR до 01:00 МСК).`,
+    clanTag: "BB",
+    meta: { windowId: bounds.id, count: rows.length },
+  });
+  return true;
+}
+
 async function finalizeWindow(bounds: RaceWindowBounds, now: Date) {
   if (now < bounds.end) return;
 
@@ -556,6 +604,9 @@ export async function tickFactionRace(now = new Date()): Promise<{
   if (current.index > 0) {
     const prev = raceWindowByIndex(current.index - 1);
     await ensureWindow(prev);
+    if (await reopenIfPrematureFinalize(prev, now)) {
+      actions.push(`reopen:${prev.id}`);
+    }
     await finalizeWindow(prev, now);
     actions.push(`finalize:${prev.id}`);
   }
@@ -563,10 +614,14 @@ export async function tickFactionRace(now = new Date()): Promise<{
   await ensureWindow(current);
   actions.push(`ensure:${current.id}`);
 
+  if (await reopenIfPrematureFinalize(current, now)) {
+    actions.push(`reopen:${current.id}`);
+  }
+
   await sendDay1IfNeeded(current, now);
   await sendMidIfNeeded(current, now);
 
-  // Если уже за концом текущего (тик ровно на стыке) — finalize current
+  // Если уже за концом текущего (после хвоста TR 01:00) — finalize current
   if (now >= current.end) {
     await finalizeWindow(current, now);
     actions.push(`finalize_current:${current.id}`);
