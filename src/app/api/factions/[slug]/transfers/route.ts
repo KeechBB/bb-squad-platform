@@ -54,10 +54,13 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   const { getFactionRaceGrace } = await import("@/lib/factionRaceEngine");
   const { loadRacePenaltyForFaction } = await import("@/lib/factionRace");
-  const [raceGrace, racePenalty] = await Promise.all([
-    getFactionRaceGrace(loaded.view.id),
-    loadRacePenaltyForFaction(loaded.view.id),
-  ]);
+  const raceGrace = await getFactionRaceGrace(loaded.view.id);
+  let racePenalty: Awaited<ReturnType<typeof loadRacePenaltyForFaction>> = null;
+  try {
+    racePenalty = await loadRacePenaltyForFaction(loaded.view.id);
+  } catch (e) {
+    console.error("loadRacePenaltyForFaction", loaded.view.id, e);
+  }
 
   const scarcity = await buildFactionKitScarcity(loaded.view.id);
   const scarcityByKit = Object.fromEntries(

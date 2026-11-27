@@ -25103,15 +25103,26 @@ body:has(.faction-page) .site-footer {
 }
 
 .xfer-race-penalty {
-  margin-top: 16px;
+  margin-top: 4px;
+  margin-bottom: 8px;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid rgba(248, 113, 113, 0.35);
-  background: rgba(69, 10, 10, 0.28);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(69, 10, 10, 0.35);
 }
 .xfer-race-penalty h4 {
   margin: 0 0 6px;
   color: #fecaca;
+}
+.xfer-race-penalty-banner {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(127, 29, 29, 0.45);
+  color: #fecaca;
+  font-size: 0.92rem;
+  width: 100%;
 }
 .faction-race-penalty-actions {
   display: flex;
