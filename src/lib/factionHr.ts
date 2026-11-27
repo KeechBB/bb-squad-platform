@@ -1,6 +1,7 @@
 /**
  * Контракты (месячная бронь) и зарплаты % от гринда.
  * ЗП падает при settle ночных ставок (01:00 МСК или ручное закрытие).
+ * При подписи: 20% стоимости → личный B$ игрока + письмо от фракции.
  */
 import { prisma } from "@/lib/prisma";
 import { BD_MARK } from "@/lib/blueberryDollar";
@@ -9,10 +10,28 @@ import type { NightBetWindowBounds } from "@/lib/factionNightBets";
 export const SALARY_PRESETS = [10, 20, 30, 40, 50, 60, 70] as const;
 export type SalaryPct = (typeof SALARY_PRESETS)[number] | 0;
 
+/** Срок контракта — 30 календарных дней. */
 export const CONTRACT_DAYS = 30;
+/** Доля стоимости контракта на личный баланс игрока при подписи. */
+export const CONTRACT_PLAYER_CUT_RATIO = 0.2;
 
 export function isSalaryPct(n: number): n is SalaryPct {
   return n === 0 || (SALARY_PRESETS as readonly number[]).includes(n);
+}
+
+/** +N календарных дней (локальная дата объекта Date). */
+export function addCalendarDays(from: Date, days: number): Date {
+  const d = new Date(from.getTime());
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function fmtRuDate(d: Date): string {
+  return d.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 export async function expireDueContracts(now = new Date()) {
@@ -57,9 +76,13 @@ export async function signMonthContract(opts: {
   signedByUserId: string;
   costBd: number;
   note?: string | null;
-}): Promise<{ ok: true; contractId: string; endsAt: string } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; contractId: string; endsAt: string; playerCutBd: number }
+  | { ok: false; error: string }
+> {
   const cost = Math.max(0, Math.round(opts.costBd));
   if (cost < 1) return { ok: false, error: "bad_cost" };
+  const playerCut = Math.max(0, Math.floor(cost * CONTRACT_PLAYER_CUT_RATIO));
 
   await expireDueContracts();
 
@@ -80,13 +103,13 @@ export async function signMonthContract(opts: {
 
   const faction = await prisma.faction.findUnique({
     where: { id: opts.factionId },
-    select: { blueberryBalance: true },
+    select: { blueberryBalance: true, name: true },
   });
   if (!faction) return { ok: false, error: "faction_missing" };
   if (faction.blueberryBalance < cost) return { ok: false, error: "treasury_low" };
 
   const startsAt = new Date();
-  const endsAt = new Date(startsAt.getTime() + CONTRACT_DAYS * 24 * 60 * 60 * 1000);
+  const endsAt = addCalendarDays(startsAt, CONTRACT_DAYS);
   const sourceKey = `contract_fee:${opts.factionId}:${opts.userId}:${startsAt.toISOString()}`;
 
   try {
@@ -102,13 +125,22 @@ export async function signMonthContract(opts: {
         where: { id: opts.factionId },
         data: { blueberryBalance: { decrement: cost } },
       });
+      if (playerCut > 0) {
+        await tx.user.update({
+          where: { id: opts.userId },
+          data: { blueberryBalance: { increment: playerCut } },
+        });
+      }
       await tx.factionLedgerEntry.create({
         data: {
           factionId: opts.factionId,
           amount: -cost,
           kind: "contract_fee",
           sourceKey,
-          note: `Контракт на месяц (−${cost.toLocaleString("ru-RU")} ${BD_MARK})`,
+          note:
+            playerCut > 0
+              ? `Контракт на ${CONTRACT_DAYS} дн. (−${cost.toLocaleString("ru-RU")} ${BD_MARK}; игроку 20% = ${playerCut.toLocaleString("ru-RU")} ${BD_MARK})`
+              : `Контракт на ${CONTRACT_DAYS} дн. (−${cost.toLocaleString("ru-RU")} ${BD_MARK})`,
           userId: opts.userId,
         },
       });
@@ -125,10 +157,23 @@ export async function signMonthContract(opts: {
         },
       });
     });
+
+    await mailContractSigned({
+      authorId: opts.signedByUserId,
+      recipientId: opts.userId,
+      factionName: faction.name,
+      costBd: cost,
+      playerCutBd: playerCut,
+      startsAt,
+      endsAt,
+      sourceKey: `contract_mail:${contract.id}`,
+    });
+
     return {
       ok: true,
       contractId: contract.id,
       endsAt: contract.endsAt.toISOString(),
+      playerCutBd: playerCut,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
@@ -136,6 +181,57 @@ export async function signMonthContract(opts: {
     if (String(e).includes("Unique constraint")) return { ok: false, error: "dup" };
     console.error("signMonthContract", e);
     return { ok: false, error: "failed" };
+  }
+}
+
+async function mailContractSigned(opts: {
+  authorId: string;
+  recipientId: string;
+  factionName: string;
+  costBd: number;
+  playerCutBd: number;
+  startsAt: Date;
+  endsAt: Date;
+  sourceKey: string;
+}) {
+  const costLabel = opts.costBd.toLocaleString("ru-RU");
+  const cutLabel = opts.playerCutBd.toLocaleString("ru-RU");
+  const fromLabel = fmtRuDate(opts.startsAt);
+  const untilLabel = fmtRuDate(opts.endsAt);
+  const body = [
+    `Фракция «${opts.factionName}» подписала с тобой контракт.`,
+    "",
+    "Что это такое",
+    `Контракт — месячная бронь игрока за фракцией. Стоимость контракта равна оценке игрока на момент подписи: ${costLabel} ${BD_MARK}.`,
+    `Эти деньги списываются с казны фракции. Тебе на личный баланс сразу приходит 20% от этой суммы: ${cutLabel} ${BD_MARK}.`,
+    "",
+    "Что теперь будет",
+    `• Срок: ${CONTRACT_DAYS} календарных дней — с ${fromLabel} по ${untilLabel} включительно.`,
+    "• До конца срока ты не можешь сам выйти из фракции за свои B$ (бронь держит состав).",
+    "• Фракция может назначить тебе % зарплаты от гринда — выплаты идут на личный B$ после ночного окна (около 01:00 МСК).",
+    "• После окончания контракта бронь снимается; выход за свои B$ снова доступен, если не подпишут новый.",
+    "",
+    "Если вопросы по контракту — пиши лидеру или заместителю фракции.",
+    "",
+    `— ${opts.factionName}`,
+  ].join("\n");
+
+  try {
+    await prisma.profileMail.create({
+      data: {
+        title: `Контракт · ${opts.factionName} · ${CONTRACT_DAYS} дней`,
+        body,
+        senderKind: "faction",
+        senderLabel: opts.factionName,
+        tags: ["Контракт", "Фракции"],
+        sourceKey: opts.sourceKey,
+        authorId: opts.authorId,
+        recipients: { create: [{ userId: opts.recipientId }] },
+      },
+    });
+  } catch (e) {
+    if (String(e).includes("Unique constraint")) return;
+    console.error("contract mail failed", e);
   }
 }
 

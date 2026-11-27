@@ -185,7 +185,9 @@ export function FactionHrPanel({
               <BdAmount n={data.treasury} />
             </strong>
             {" · "}
-            контракт = бронь на 30 дней (стоимость игрока)
+            контракт = бронь на 30 календарных дней (стоимость игрока)
+            {" · "}
+            20% стоимости → личный B$ игрока + письмо от фракции
             {" · "}
             ЗП % от гринда — в 01:00 или при ручном закрытии ночи
           </p>
@@ -275,8 +277,9 @@ export function FactionHrPanel({
                               className="btn primary"
                               disabled={busy}
                               onClick={() => {
+                                const cut = Math.floor(m.playerValue * 0.2);
                                 const ok = window.confirm(
-                                  `Подписать контракт с ${m.nick} на 30 дней?\nС казны спишется ${m.playerValue.toLocaleString("ru-RU")} B$ (оценка игрока).\nИгрок не сможет выйти за свои B$ до конца срока.`,
+                                  `Подписать контракт с ${m.nick} на 30 календарных дней?\nС казны спишется ${m.playerValue.toLocaleString("ru-RU")} B$ (оценка игрока).\nИгроку на личный баланс: ${cut.toLocaleString("ru-RU")} B$ (20%) + письмо от фракции.\nДо конца срока игрок не сможет выйти за свои B$.`,
                                 );
                                 if (!ok) return;
                                 void run("sign_contract", { userId: m.userId });
