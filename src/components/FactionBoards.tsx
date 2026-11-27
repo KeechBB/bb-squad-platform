@@ -1366,9 +1366,12 @@ type NightBetBoardData = {
   canBet: boolean;
   canCloseTraining?: boolean;
   myTreasury: number;
+  myPersonalBalance?: number;
   balanceLabel?: string;
   infiniteBalance?: boolean;
   isPersonalBettor?: boolean;
+  canBetTreasury?: boolean;
+  canBetPersonal?: boolean;
   pot: number;
   minBet: number;
   grind: NightGrindRow[];
@@ -1379,6 +1382,7 @@ type NightBetBoardData = {
     odds: number | null;
     status: string;
     payout: number;
+    isPersonal?: boolean;
   }[];
   myBet: {
     pickFactionId: string;
@@ -1386,6 +1390,7 @@ type NightBetBoardData = {
     odds: number | null;
     status: string;
     payout: number;
+    isPersonal?: boolean;
   } | null;
   winners: {
     factionId: string;
@@ -1426,6 +1431,7 @@ type NightHistoryRow = {
   status: string;
   payout: number;
   placedByNick: string;
+  isPersonal?: boolean;
 };
 
 export function FactionNightBetsBoard({
@@ -1440,12 +1446,17 @@ export function FactionNightBetsBoard({
   const [error, setError] = useState("");
   const [pickId, setPickId] = useState("");
   const [amountStr, setAmountStr] = useState("");
+  const [betSource, setBetSource] = useState<"treasury" | "personal">("personal");
   const [busy, setBusy] = useState(false);
   const [closing, setClosing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRows, setHistoryRows] = useState<NightHistoryRow[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPage, setHistoryPage] = useState(0);
+  const [winsOpen, setWinsOpen] = useState(false);
+  const [winsRows, setWinsRows] = useState<NightHistoryRow[] | null>(null);
+  const [winsLoading, setWinsLoading] = useState(false);
+  const [winsPage, setWinsPage] = useState(0);
   const HISTORY_DAYS_PER_PAGE = 5;
   const [grindDetailOpen, setGrindDetailOpen] = useState(false);
   const [grindDetailLoading, setGrindDetailLoading] = useState(false);
@@ -1495,6 +1506,13 @@ export function FactionNightBetsBoard({
       const firstMine = json.myBets?.[0] || json.myBet;
       if (!pickId && firstMine?.pickFactionId) {
         setPickId(firstMine.pickFactionId);
+      }
+      if (json.infiniteBalance || json.isPersonalBettor) {
+        setBetSource("personal");
+      } else if (json.canBetTreasury && !json.canBetPersonal) {
+        setBetSource("treasury");
+      } else if (!json.canBetTreasury && json.canBetPersonal) {
+        setBetSource("personal");
       }
     } catch (err) {
       if ((err as { name?: string }).name === "AbortError") return;
@@ -1551,6 +1569,16 @@ export function FactionNightBetsBoard({
       setError("Выбери фракцию");
       return;
     }
+    const source =
+      data.canBetTreasury && betSource === "treasury" ? "treasury" : "personal";
+    if (source === "treasury" && !data.canBetTreasury) {
+      setError("Из казны может ставить только глава или зам");
+      return;
+    }
+    if (source === "personal" && !data.canBetPersonal && !data.infiniteBalance) {
+      setError("Нет доступа к личным ставкам");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -1559,7 +1587,7 @@ export function FactionNightBetsBoard({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pickFactionId: pickId, amount }),
+          body: JSON.stringify({ pickFactionId: pickId, amount, source }),
         }
       );
       const json = (await res.json().catch(() => ({}))) as NightBetBoardData & {
@@ -1571,6 +1599,7 @@ export function FactionNightBetsBoard({
         return;
       }
       setData(json);
+      setAmountStr("");
     } catch {
       setError("Сеть недоступна");
     } finally {
@@ -1675,11 +1704,39 @@ export function FactionNightBetsBoard({
     }
   }
 
-  const historyDays = useMemo(() => {
-    if (!historyRows?.length) return [] as { day: string; windowId: string; rows: NightHistoryRow[] }[];
+  async function openWins() {
+    setWinsOpen(true);
+    setWinsPage(0);
+    setWinsLoading(true);
+    try {
+      const res = await fetch(
+        `/api/factions/${encodeURIComponent(slug)}/night-bets?wins=1`,
+        { cache: "no-store" }
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        rows?: NightHistoryRow[];
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(json.error || "Не удалось загрузить выигрыши");
+        setWinsRows([]);
+        return;
+      }
+      setWinsRows(Array.isArray(json.rows) ? json.rows : []);
+    } catch {
+      setWinsRows([]);
+    } finally {
+      setWinsLoading(false);
+    }
+  }
+
+  function groupHistoryDays(rows: NightHistoryRow[] | null) {
+    if (!rows?.length) {
+      return [] as { day: string; windowId: string; rows: NightHistoryRow[] }[];
+    }
     const map = new Map<string, NightHistoryRow[]>();
     const order: string[] = [];
-    for (const r of historyRows) {
+    for (const r of rows) {
       const key = r.windowId || r.label;
       if (!map.has(key)) {
         map.set(key, []);
@@ -1692,7 +1749,13 @@ export function FactionNightBetsBoard({
       day: map.get(windowId)![0]?.label || windowId,
       rows: map.get(windowId)!,
     }));
-  }, [historyRows]);
+  }
+
+  const historyDays = useMemo(
+    () => groupHistoryDays(historyRows),
+    [historyRows]
+  );
+  const winsDays = useMemo(() => groupHistoryDays(winsRows), [winsRows]);
 
   const historyPageCount = Math.max(
     1,
@@ -1702,6 +1765,15 @@ export function FactionNightBetsBoard({
   const historyPageDays = historyDays.slice(
     historyPageSafe * HISTORY_DAYS_PER_PAGE,
     historyPageSafe * HISTORY_DAYS_PER_PAGE + HISTORY_DAYS_PER_PAGE
+  );
+  const winsPageCount = Math.max(
+    1,
+    Math.ceil(winsDays.length / HISTORY_DAYS_PER_PAGE)
+  );
+  const winsPageSafe = Math.min(winsPage, winsPageCount - 1);
+  const winsPageDays = winsDays.slice(
+    winsPageSafe * HISTORY_DAYS_PER_PAGE,
+    winsPageSafe * HISTORY_DAYS_PER_PAGE + HISTORY_DAYS_PER_PAGE
   );
 
   const grindDaysPageCount = Math.max(
@@ -1725,8 +1797,16 @@ export function FactionNightBetsBoard({
     : data?.myBet
       ? [data.myBet]
       : [];
+  const sourceIsPersonal =
+    !(data?.canBetTreasury && betSource === "treasury");
   const myOnSelected = selected
-    ? myBets.find((b) => b.pickFactionId === selected.factionId) || null
+    ? myBets.find(
+        (b) =>
+          b.pickFactionId === selected.factionId &&
+          Boolean(b.isPersonal) === sourceIsPersonal
+      ) ||
+      myBets.find((b) => b.pickFactionId === selected.factionId) ||
+      null
     : null;
   const myPickIds = new Set(myBets.map((b) => b.pickFactionId));
 
@@ -1755,6 +1835,13 @@ export function FactionNightBetsBoard({
           >
             История ставок
           </button>
+          <button
+            type="button"
+            className="btn faction-night-bets-wins-btn"
+            onClick={() => void openWins()}
+          >
+            История выигрышей
+          </button>
         </div>
       </div>
       {error ? <p className="error">{error}</p> : null}
@@ -1767,12 +1854,18 @@ export function FactionNightBetsBoard({
               <span className="faction-night-bets-stat-label">Банк</span>
               <strong>{fmtBd(data.pot)} B$</strong>
             </div>
+            {data.canBetTreasury || data.myTreasury > 0 ? (
+              <div className="faction-night-bets-stat">
+                <span className="faction-night-bets-stat-label">Казна фракции</span>
+                <strong>{fmtBd(data.myTreasury)} B$</strong>
+              </div>
+            ) : null}
             <div className="faction-night-bets-stat">
-              <span className="faction-night-bets-stat-label">
-                {data.balanceLabel || "Казна фракции"}
-              </span>
+              <span className="faction-night-bets-stat-label">Личный B$</span>
               <strong>
-                {data.infiniteBalance ? "∞" : `${fmtBd(data.myTreasury)} B$`}
+                {data.infiniteBalance
+                  ? "∞"
+                  : `${fmtBd(data.myPersonalBalance ?? 0)} B$`}
               </strong>
             </div>
             {myBets.length > 0 ? (
@@ -1914,6 +2007,30 @@ export function FactionNightBetsBoard({
 
           {data.canBet ? (
             <div className="faction-night-bets-place">
+              {data.canBetTreasury && data.canBetPersonal ? (
+                <div className="faction-night-bets-source" role="group" aria-label="Откуда ставить">
+                  <button
+                    type="button"
+                    className={`btn faction-night-bets-source-btn${
+                      betSource === "treasury" ? " is-active" : ""
+                    }`}
+                    disabled={busy}
+                    onClick={() => setBetSource("treasury")}
+                  >
+                    Казна фракции
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn faction-night-bets-source-btn${
+                      betSource === "personal" ? " is-active" : ""
+                    }`}
+                    disabled={busy}
+                    onClick={() => setBetSource("personal")}
+                  >
+                    Личный B$
+                  </button>
+                </div>
+              ) : null}
               <div className="faction-night-bets-place-pick">
                 {selected ? (
                   <>
@@ -1921,9 +2038,13 @@ export function FactionNightBetsBoard({
                     <strong style={{ color: selected.color }}>{selected.name}</strong>
                     {selected.odds != null ? ` · ${fmtOdds(selected.odds)}` : ""}
                     {myOnSelected ? ` · уже ${fmtBd(myOnSelected.amount)} B$` : ""}
+                    {" · "}
+                    {betSource === "treasury" && data.canBetTreasury
+                      ? "с казны"
+                      : "с личного баланса"}
                   </>
                 ) : (
-                  <>Выбери фракцию сверху</>
+                  <>Выбери фракцию сверху · любая сумма · додеп до 21:30</>
                 )}
               </div>
               <div className="faction-night-bets-place-row">
@@ -1931,7 +2052,7 @@ export function FactionNightBetsBoard({
                   type="text"
                   inputMode="numeric"
                   className="faction-night-bets-amount"
-                  placeholder={`Сумма от ${fmtBd(data.minBet)}`}
+                  placeholder={`Сумма от ${fmtBd(data.minBet)} B$`}
                   value={amountStr}
                   onChange={(e) => setAmountStr(e.target.value)}
                   disabled={busy || !selected}
@@ -2159,6 +2280,83 @@ export function FactionNightBetsBoard({
                     disabled={historyPageSafe >= historyPageCount - 1}
                     onClick={() =>
                       setHistoryPage((p) => Math.min(historyPageCount - 1, p + 1))
+                    }
+                  >
+                    Вперёд →
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </DraggableModal>
+
+      <DraggableModal
+        open={winsOpen}
+        closeOnBackdrop
+        onClose={() => setWinsOpen(false)}
+        panelClassName="faction-night-bets-history-modal"
+      >
+        <header className="profile-match-modal-head" data-drag-handle>
+          <div>
+            <h2 className="profile-mail-modal-title">История выигрышей</h2>
+            <p className="profile-match-modal-sub muted">
+              Дата · кто выиграл · на кого ставил · сколько забрал
+            </p>
+          </div>
+          <button
+            type="button"
+            className="profile-mail-close"
+            onClick={() => setWinsOpen(false)}
+          >
+            ×
+          </button>
+        </header>
+        <div className="faction-night-bets-history">
+          {winsLoading ? <p>Загрузка…</p> : null}
+          {!winsLoading && winsDays.length === 0 ? <p>Пока нет выигрышей.</p> : null}
+          {!winsLoading && winsPageDays.length > 0 ? (
+            <>
+              {winsPageDays.map((day) => (
+                <section key={day.windowId} className="faction-night-bets-history-day">
+                  <h3>{day.day}</h3>
+                  <ul>
+                    {day.rows.map((r) => (
+                      <li key={r.id}>
+                        <strong style={{ color: r.fromColor }}>
+                          {r.fromName || r.placedByNick || "—"}
+                        </strong>
+                        {r.isPersonal ? " · личный" : ""}
+                        {` → `}
+                        <strong style={{ color: r.pickColor }}>{r.pickName}</strong>
+                        {` · ставка ${fmtBd(r.amount)} → `}
+                        <strong className="faction-night-bets-win-amt">
+                          +{fmtBd(r.payout)} B$
+                        </strong>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+              {winsPageCount > 1 ? (
+                <div className="faction-night-bets-history-pager">
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={winsPageSafe <= 0}
+                    onClick={() => setWinsPage((p) => Math.max(0, p - 1))}
+                  >
+                    ← Назад
+                  </button>
+                  <span>
+                    {winsPageSafe + 1} / {winsPageCount}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={winsPageSafe >= winsPageCount - 1}
+                    onClick={() =>
+                      setWinsPage((p) => Math.min(winsPageCount - 1, p + 1))
                     }
                   >
                     Вперёд →

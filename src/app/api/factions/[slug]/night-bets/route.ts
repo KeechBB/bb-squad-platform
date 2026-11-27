@@ -6,9 +6,11 @@ import {
   forceCloseNightTraining,
   nightBetBoard,
   nightBetHistory,
+  nightBetWinsHistory,
   nightFactionGrindDayHistory,
   nightGrindPlayers,
   placeNightBet,
+  type NightBetSource,
 } from "@/lib/factionNightBets";
 import { prisma } from "@/lib/prisma";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
@@ -22,12 +24,32 @@ function isOfficerSeat(seat: string | null | undefined): boolean {
   return seat === "LEADER" || seat === "DEPUTY";
 }
 
+function isMemberSeat(seat: string | null | undefined): boolean {
+  return seat === "LEADER" || seat === "DEPUTY" || seat === "MEMBER";
+}
+
 async function sessionUserId(steamId: string): Promise<string | null> {
   const user = await prisma.user.findFirst({
     where: { steamId },
     select: { id: true },
   });
   return user?.id || null;
+}
+
+function boardOpts(view: {
+  id: string;
+  mySeat: string | null;
+}, opts: { userId: string | null; keech: boolean }) {
+  const officer = isOfficerSeat(view.mySeat);
+  const member = isMemberSeat(view.mySeat) || opts.keech;
+  return {
+    viewerFactionId: view.id,
+    viewerUserId: opts.userId,
+    isMember: member,
+    canPlaceTreasury: officer || opts.keech,
+    canPlace: member,
+    isKeech: opts.keech,
+  };
 }
 
 export async function GET(req: Request, ctx: Ctx) {
@@ -49,6 +71,11 @@ export async function GET(req: Request, ctx: Ctx) {
     return NextResponse.json({ rows });
   }
 
+  if (url.searchParams.get("wins") === "1") {
+    const rows = await nightBetWinsHistory();
+    return NextResponse.json({ rows });
+  }
+
   if (url.searchParams.get("grindDays") === "1") {
     const days = await nightFactionGrindDayHistory({ days: 45 });
     return NextResponse.json({ days });
@@ -63,13 +90,7 @@ export async function GET(req: Request, ctx: Ctx) {
     return NextResponse.json(detail);
   }
 
-  const canPlace = isOfficerSeat(view.mySeat) || keech;
-  const board = await nightBetBoard({
-    viewerFactionId: view.id,
-    viewerUserId: userId,
-    canPlace,
-    isKeech: keech,
-  });
+  const board = await nightBetBoard(boardOpts(view, { userId, keech }));
   return NextResponse.json(board);
 }
 
@@ -93,6 +114,7 @@ export async function POST(req: Request, ctx: Ctx) {
     action?: string;
     pickFactionId?: string;
     amount?: number;
+    source?: string;
   };
 
   const userId = await sessionUserId(session.user.steamId);
@@ -116,12 +138,7 @@ export async function POST(req: Request, ctx: Ctx) {
         { status: 400 }
       );
     }
-    const board = await nightBetBoard({
-      viewerFactionId: view.id,
-      viewerUserId: userId,
-      canPlace: true,
-      isKeech: true,
-    });
+    const board = await nightBetBoard(boardOpts(view, { userId, keech: true }));
     return NextResponse.json({
       ok: true,
       closed: true,
@@ -130,11 +147,31 @@ export async function POST(req: Request, ctx: Ctx) {
     });
   }
 
-  if (!keech && !isOfficerSeat(view.mySeat)) {
+  const officer = isOfficerSeat(view.mySeat);
+  const member = isMemberSeat(view.mySeat) || keech;
+  if (!member) {
     return NextResponse.json(
-      { error: "Ставить может только глава или зам фракции" },
+      { error: "Ставить может только участник фракции" },
       { status: 403 }
     );
+  }
+
+  const rawSource = String(body.source || "").trim().toLowerCase();
+  let source: NightBetSource;
+  if (keech) {
+    source = "personal";
+  } else if (rawSource === "treasury") {
+    if (!officer) {
+      return NextResponse.json(
+        { error: "Из казны может ставить только глава или зам" },
+        { status: 403 }
+      );
+    }
+    source = "treasury";
+  } else if (rawSource === "personal") {
+    source = "personal";
+  } else {
+    source = officer ? "treasury" : "personal";
   }
 
   const pickFactionId = String(body.pickFactionId || "").trim();
@@ -149,18 +186,20 @@ export async function POST(req: Request, ctx: Ctx) {
     fromFactionId: view.id,
     pickFactionId,
     amount,
+    source,
   });
 
   if (!result.ok) {
     const map: Record<string, string> = {
-      min_bet: "Минимальная ставка — 1 000 B$",
+      min_bet: "Минимальная ставка — 1 B$",
       not_member: "Ты не в этой фракции",
-      forbidden_seat: "Ставить может только глава или зам",
+      forbidden_seat: "Из казны может ставить только глава или зам",
       bets_not_open: "Ставки ещё не открыты",
-      window_closed: "Приём ставок закрыт",
+      window_closed: "Приём ставок закрыт (до 21:30 МСК)",
       bad_faction: "Эта фракция не может ставить",
       bad_pick: "Нельзя ставить на эту фракцию",
       insufficient: "В казне не хватает B$",
+      insufficient_personal: "На личном балансе не хватает B$",
       debit: "Не удалось списать ставку",
     };
     return NextResponse.json(
@@ -169,11 +208,6 @@ export async function POST(req: Request, ctx: Ctx) {
     );
   }
 
-  const board = await nightBetBoard({
-    viewerFactionId: view.id,
-    viewerUserId: userId,
-    canPlace: true,
-    isKeech: keech,
-  });
+  const board = await nightBetBoard(boardOpts(view, { userId, keech }));
   return NextResponse.json({ ok: true, ...board });
 }

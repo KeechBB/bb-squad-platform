@@ -17,9 +17,11 @@ import { trainingDayYmd } from "@/lib/squadSessions";
 import { BD_MARK } from "@/lib/blueberryDollar";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 
-export const NIGHT_BET_MIN = 1_000;
+/** Любая сумма от 1 B$ (раньше было 1000). */
+export const NIGHT_BET_MIN = 1;
 export const KEECH_BET_NAME = "Кич";
 export const KEECH_BET_COLOR = "#fbbf24";
+export type NightBetSource = "treasury" | "personal";
 
 export type NightBetWindowBounds = {
   id: string;
@@ -408,8 +410,19 @@ export async function settleNightBetWindow(
             ? `Возврат ставки ${pay.toLocaleString("ru-RU")} ${BD_MARK} (ночь ${bounds.id})`
             : `Выигрыш ставки ${pay.toLocaleString("ru-RU")} ${BD_MARK} (ночь ${bounds.id})`;
         if (b.isPersonal || !b.fromFactionId) {
-          // Личная/Keech-ставка: выигрыш в пуле уже учтён; безлимитной казне
-          // Кича кошелёк не трогаем (ставки не списывались).
+          // Keech: безлимит, кошелёк не трогаем. Остальные личные — на User.blueberryBalance.
+          const placer = await tx.user.findUnique({
+            where: { id: b.placedByUserId },
+            select: { steamId: true },
+          });
+          if (placer?.steamId && isBuiltinSuperAdmin(placer.steamId)) {
+            // no-op
+          } else {
+            await tx.user.update({
+              where: { id: b.placedByUserId },
+              data: { blueberryBalance: { increment: pay } },
+            });
+          }
         } else {
           await tx.factionLedgerEntry.create({
             data: {
@@ -488,13 +501,19 @@ export type NightBetBoard = {
   /** Keech: кнопка «Закрыть тренировку» (досрочный итог ставок). */
   canCloseTraining: boolean;
   myFactionId: string | null;
-  /** Казна фракции или казна Keech. */
+  /** Казна фракции (для ставки главы/зама). */
   myTreasury: number;
-  /** Подпись баланса. */
+  /** Личный B$ зрителя. */
+  myPersonalBalance: number;
+  /** Подпись баланса по умолчанию. */
   balanceLabel: string;
   /** Keech: баланс не ограничен. */
   infiniteBalance: boolean;
   isPersonalBettor: boolean;
+  /** Можно ставить из казны (глава/зам). */
+  canBetTreasury: boolean;
+  /** Можно ставить с личного B$ (участник / Keech). */
+  canBetPersonal: boolean;
   pot: number;
   minBet: number;
   /** Только фракции забега + ставка/кэф на каждую. */
@@ -530,14 +549,16 @@ export type NightBetBoard = {
     odds: number | null;
     status: string;
     payout: number;
+    isPersonal: boolean;
   }[];
-  /** Совместимость: первая / выбранная ставка. */
+  /** Совместимость: первая / избранная ставка. */
   myBet: {
     pickFactionId: string;
     amount: number;
     odds: number | null;
     status: string;
     payout: number;
+    isPersonal: boolean;
   } | null;
   winners: {
     factionId: string;
@@ -566,9 +587,30 @@ function phaseAt(
   return "locked";
 }
 
+function personalBettorLabel(placedBy: {
+  nick: string | null;
+  steamName: string | null;
+  name: string | null;
+  steamId?: string | null;
+}): { name: string; color: string } {
+  if (placedBy.steamId && isBuiltinSuperAdmin(placedBy.steamId)) {
+    return { name: KEECH_BET_NAME, color: KEECH_BET_COLOR };
+  }
+  const nick =
+    (placedBy.nick && placedBy.nick.trim()) ||
+    (placedBy.steamName && placedBy.steamName.trim()) ||
+    (placedBy.name && placedBy.name.trim()) ||
+    "Игрок";
+  return { name: nick, color: "#a78bfa" };
+}
+
 export async function nightBetBoard(opts: {
   viewerFactionId: string | null;
   viewerUserId?: string | null;
+  /** Участник этой фракции (может ставить личным B$). */
+  isMember?: boolean;
+  /** Глава/зам — казна фракции. */
+  canPlaceTreasury?: boolean;
   canPlace: boolean;
   isKeech?: boolean;
   now?: Date;
@@ -594,13 +636,17 @@ export async function nightBetBoard(opts: {
   const settled = win?.status === "settled";
   const phase = phaseAt(bounds, now, settled);
   const isKeech = Boolean(opts.isKeech);
+  const isMember = Boolean(opts.isMember) || isKeech;
+  const canPlaceTreasurySeat = Boolean(opts.canPlaceTreasury);
 
   const bets = await prisma.factionNightBet.findMany({
     where: { windowId: bounds.id },
     include: {
       fromFaction: { select: { id: true, name: true, slug: true, info: true } },
       pickFaction: { select: { id: true, name: true, slug: true, info: true } },
-      placedBy: { select: { nick: true, name: true, steamName: true } },
+      placedBy: {
+        select: { nick: true, name: true, steamName: true, steamId: true },
+      },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -660,12 +706,20 @@ export async function nightBetBoard(opts: {
     : null;
 
   let myTreasury = 0;
+  let myPersonalBalance = 0;
   let balanceLabel = "Казна фракции";
   let infiniteBalance = false;
 
+  if (opts.viewerUserId) {
+    const u = await prisma.user.findUnique({
+      where: { id: opts.viewerUserId },
+      select: { blueberryBalance: true },
+    });
+    myPersonalBalance = Math.max(0, u?.blueberryBalance || 0);
+  }
+
   if (isKeech) {
-    // Своя «казна» Кича — безлимит, ставки не списывают реальный B$.
-    balanceLabel = "Казна фракции";
+    balanceLabel = "Личный B$ (безлимит)";
     infiniteBalance = true;
     myTreasury = 0;
   } else {
@@ -677,25 +731,35 @@ export async function nightBetBoard(opts: {
       });
       myTreasury = Math.max(0, f?.blueberryBalance || 0);
     }
+    balanceLabel = canPlaceTreasurySeat ? "Казна / личный B$" : "Личный B$";
   }
 
-  const myBetRows =
-    isKeech && opts.viewerUserId
-      ? bets.filter(
-          (b) => b.isPersonal && b.placedByUserId === opts.viewerUserId
-        )
-      : opts.viewerFactionId
-        ? bets.filter(
-            (b) => !b.isPersonal && b.fromFactionId === opts.viewerFactionId
-          )
-        : [];
+  const myBetRows = bets.filter((b) => {
+    if (opts.viewerUserId && b.isPersonal && b.placedByUserId === opts.viewerUserId) {
+      return true;
+    }
+    if (
+      !isKeech &&
+      opts.viewerFactionId &&
+      !b.isPersonal &&
+      b.fromFactionId === opts.viewerFactionId
+    ) {
+      return true;
+    }
+    return false;
+  });
 
-  const canBet =
-    phase === "open" &&
-    !settled &&
-    (isKeech
-      ? Boolean(opts.canPlace && opts.viewerUserId)
-      : Boolean(opts.canPlace && opts.viewerFactionId && myFaction));
+  const windowOpen = phase === "open" && !settled;
+  const canBetPersonal =
+    windowOpen &&
+    Boolean(opts.viewerUserId) &&
+    (isKeech || (isMember && Boolean(opts.viewerFactionId)));
+  const canBetTreasury =
+    windowOpen &&
+    !isKeech &&
+    canPlaceTreasurySeat &&
+    Boolean(opts.viewerFactionId && myFaction);
+  const canBet = canBetPersonal || canBetTreasury;
 
   // Только Кич, после старта гринда (21:00), пока окно не закрыто.
   const canCloseTraining =
@@ -706,15 +770,17 @@ export async function nightBetBoard(opts: {
   const betRows = activeBets.map((b) => {
     const odds = decimalOdds(pot, stakes.get(b.pickFactionId) || 0);
     const personal = b.isPersonal || !b.fromFaction;
+    const person = personal
+      ? personalBettorLabel(b.placedBy)
+      : {
+          name: b.fromFaction!.name,
+          color: factionUiColor(b.fromFaction!.name, b.fromFaction!.slug),
+        };
     return {
       id: b.id,
       fromFactionId: b.fromFactionId,
-      fromName: personal
-        ? KEECH_BET_NAME
-        : b.fromFaction!.name,
-      fromColor: personal
-        ? KEECH_BET_COLOR
-        : factionUiColor(b.fromFaction!.name, b.fromFaction!.slug),
+      fromName: personal ? `${person.name} · личный` : person.name,
+      fromColor: person.color,
       isPersonal: personal,
       pickFactionId: b.pickFactionId,
       pickName: b.pickFaction.name,
@@ -733,12 +799,19 @@ export async function nightBetBoard(opts: {
         .filter((b) => b.payout > 0)
         .map((b) => {
           const personal = b.isPersonal || !b.fromFaction;
+          const person = personal
+            ? personalBettorLabel(b.placedBy)
+            : {
+                name: b.fromFaction!.name,
+                color: factionUiColor(
+                  b.fromFaction!.name,
+                  b.fromFaction!.slug
+                ),
+              };
           return {
             fromFactionId: b.fromFactionId,
-            fromName: personal ? KEECH_BET_NAME : b.fromFaction!.name,
-            fromColor: personal
-              ? KEECH_BET_COLOR
-              : factionUiColor(b.fromFaction!.name, b.fromFaction!.slug),
+            fromName: personal ? `${person.name} · личный` : person.name,
+            fromColor: person.color,
             amount: b.amount,
             payout: b.payout,
           };
@@ -757,9 +830,12 @@ export async function nightBetBoard(opts: {
     canCloseTraining,
     myFactionId: opts.viewerFactionId,
     myTreasury,
+    myPersonalBalance,
     balanceLabel,
     infiniteBalance,
-    isPersonalBettor: isKeech,
+    isPersonalBettor: isKeech || (!canBetTreasury && canBetPersonal),
+    canBetTreasury,
+    canBetPersonal,
     pot,
     minBet: NIGHT_BET_MIN,
     grind,
@@ -770,6 +846,7 @@ export async function nightBetBoard(opts: {
       odds: decimalOdds(pot, stakes.get(b.pickFactionId) || 0),
       status: b.status,
       payout: b.payout,
+      isPersonal: Boolean(b.isPersonal),
     })),
     myBet: myBetRows[0]
       ? {
@@ -778,13 +855,13 @@ export async function nightBetBoard(opts: {
           odds: decimalOdds(pot, stakes.get(myBetRows[0].pickFactionId) || 0),
           status: myBetRows[0].status,
           payout: myBetRows[0].payout,
+          isPersonal: Boolean(myBetRows[0].isPersonal),
         }
       : null,
     winners,
     payouts,
   };
 }
-
 /** История ставок фракции или личных ставок Keech. */
 /** Общая книга ставок (все фракции + личные Keech), не только «свои». */
 function shiftYmd(ymd: string, deltaDays: number): string | null {
@@ -887,76 +964,125 @@ export async function nightFactionGrindDayHistory(opts?: {
   return out;
 }
 
+type NightHistoryItem = {
+  id: string;
+  windowId: string;
+  label: string;
+  fromName: string;
+  fromColor: string;
+  pickName: string;
+  pickColor: string;
+  amount: number;
+  status: string;
+  payout: number;
+  placedByNick: string;
+  isPersonal: boolean;
+};
+
+function mapNightHistoryRow(r: {
+  id: string;
+  windowId: string;
+  amount: number;
+  status: string;
+  payout: number;
+  isPersonal: boolean;
+  pickFaction: { name: string; slug: string; info: string | null };
+  fromFaction: { name: string; slug: string; info: string | null } | null;
+  placedBy: {
+    nick: string | null;
+    steamName: string | null;
+    name: string | null;
+    steamId: string | null;
+  };
+}): NightHistoryItem {
+  const bounds = nightBetBoundsForDay(r.windowId);
+  const fromInfo = r.fromFaction ? parseFactionInfo(r.fromFaction.info) : null;
+  const pickInfo = parseFactionInfo(r.pickFaction.info);
+  const placedByNick =
+    (r.placedBy.nick && r.placedBy.nick.trim()) ||
+    (r.placedBy.steamName && r.placedBy.steamName.trim()) ||
+    (r.placedBy.name && r.placedBy.name.trim()) ||
+    "—";
+  let fromName: string;
+  let fromColor: string;
+  if (r.isPersonal) {
+    const person = personalBettorLabel(r.placedBy);
+    fromName = person.name;
+    fromColor = person.color;
+  } else if (r.fromFaction) {
+    fromName = r.fromFaction.name;
+    fromColor = factionUiColor(
+      r.fromFaction.name,
+      r.fromFaction.slug,
+      fromInfo?.color
+    );
+  } else {
+    fromName = "—";
+    fromColor = "#94a3b8";
+  }
+  return {
+    id: r.id,
+    windowId: r.windowId,
+    label: bounds ? formatNightBetDayLabel(bounds) : r.windowId,
+    fromName,
+    fromColor,
+    pickName: r.pickFaction.name,
+    pickColor: factionUiColor(
+      r.pickFaction.name,
+      r.pickFaction.slug,
+      pickInfo.color
+    ),
+    amount: r.amount,
+    status: r.status,
+    payout: r.payout,
+    placedByNick,
+    isPersonal: r.isPersonal,
+  };
+}
+
 export async function nightBetHistory(_opts?: {
   fromFactionId?: string | null;
   personalUserId?: string | null;
-}): Promise<
-  {
-    id: string;
-    windowId: string;
-    label: string;
-    fromName: string;
-    fromColor: string;
-    pickName: string;
-    pickColor: string;
-    amount: number;
-    status: string;
-    payout: number;
-    placedByNick: string;
-  }[]
-> {
+}): Promise<NightHistoryItem[]> {
   const rows = await prisma.factionNightBet.findMany({
     where: { status: { in: ["won", "lost", "refunded", "pending"] } },
     include: {
       pickFaction: { select: { name: true, slug: true, info: true } },
       fromFaction: { select: { name: true, slug: true, info: true } },
-      placedBy: { select: { nick: true, steamName: true, name: true } },
+      placedBy: {
+        select: { nick: true, steamName: true, name: true, steamId: true },
+      },
       window: { select: { id: true, status: true } },
     },
     orderBy: [{ windowId: "desc" }, { createdAt: "desc" }],
     take: 400,
   });
-  return rows.map((r) => {
-    const bounds = nightBetBoundsForDay(r.windowId);
-    const fromInfo = r.fromFaction ? parseFactionInfo(r.fromFaction.info) : null;
-    const pickInfo = parseFactionInfo(r.pickFaction.info);
-    const fromName = r.isPersonal
-      ? KEECH_BET_NAME
-      : r.fromFaction?.name || "—";
-    const fromColor = r.isPersonal
-      ? KEECH_BET_COLOR
-      : r.fromFaction
-        ? factionUiColor(r.fromFaction.name, r.fromFaction.slug, fromInfo?.color)
-        : "#94a3b8";
-    const placedByNick =
-      (r.placedBy.nick && r.placedBy.nick.trim()) ||
-      (r.placedBy.steamName && r.placedBy.steamName.trim()) ||
-      (r.placedBy.name && r.placedBy.name.trim()) ||
-      "—";
-    return {
-      id: r.id,
-      windowId: r.windowId,
-      label: bounds ? formatNightBetDayLabel(bounds) : r.windowId,
-      fromName,
-      fromColor,
-      pickName: r.pickFaction.name,
-      pickColor: factionUiColor(
-        r.pickFaction.name,
-        r.pickFaction.slug,
-        pickInfo.color
-      ),
-      amount: r.amount,
-      status: r.status,
-      payout: r.payout,
-      placedByNick,
-    };
+  return rows.map(mapNightHistoryRow);
+}
+
+/** Только выигрыши: дата, кто, на кого, сколько забрал. */
+export async function nightBetWinsHistory(): Promise<NightHistoryItem[]> {
+  const rows = await prisma.factionNightBet.findMany({
+    where: { status: "won", payout: { gt: 0 } },
+    include: {
+      pickFaction: { select: { name: true, slug: true, info: true } },
+      fromFaction: { select: { name: true, slug: true, info: true } },
+      placedBy: {
+        select: { nick: true, steamName: true, name: true, steamId: true },
+      },
+      window: { select: { id: true, status: true } },
+    },
+    orderBy: [{ windowId: "desc" }, { createdAt: "desc" }],
+    take: 400,
   });
+  return rows.map(mapNightHistoryRow);
 }
 
 /**
- * Поставить / додеп. Глава/зам — из казны фракции.
- * Keech — своя безлимитная казна (isPersonal, без списания B$).
- * Отмена запрещена.
+ * Поставить / додеп.
+ * source=treasury — глава/зам из казны.
+ * source=personal — любой участник с личного B$ (Keech — безлимит).
+ * Отмена запрещена; додеп до 21:30.
  */
 export async function placeNightBet(opts: {
   actorUserId: string;
@@ -964,6 +1090,7 @@ export async function placeNightBet(opts: {
   fromFactionId: string;
   pickFactionId: string;
   amount: number;
+  source?: NightBetSource;
 }): Promise<{ ok: true; mode: "place" | "topup" } | { ok: false; error: string }> {
   const amount = Math.trunc(Number(opts.amount) || 0);
   if (amount < NIGHT_BET_MIN) return { ok: false, error: "min_bet" };
@@ -972,6 +1099,7 @@ export async function placeNightBet(opts: {
     opts.actorSteamId && isBuiltinSuperAdmin(opts.actorSteamId)
   );
 
+  let seat: string | null = null;
   if (!keech) {
     const mem = await prisma.factionMember.findUnique({
       where: { userId: opts.actorUserId },
@@ -980,7 +1108,16 @@ export async function placeNightBet(opts: {
     if (!mem || mem.factionId !== opts.fromFactionId) {
       return { ok: false, error: "not_member" };
     }
-    if (mem.seat !== "LEADER" && mem.seat !== "DEPUTY") {
+    seat = mem.seat;
+  }
+
+  const wantPersonal =
+    keech ||
+    opts.source === "personal" ||
+    (opts.source !== "treasury" && seat === "MEMBER");
+  const usePersonal = wantPersonal;
+  if (!usePersonal) {
+    if (seat !== "LEADER" && seat !== "DEPUTY" && !keech) {
       return { ok: false, error: "forbidden_seat" };
     }
   }
@@ -1013,7 +1150,7 @@ export async function placeNightBet(opts: {
   });
   if (!win || win.status === "settled") return { ok: false, error: "window_closed" };
 
-  const existing = keech
+  const existing = usePersonal
     ? await prisma.factionNightBet.findFirst({
         where: {
           windowId: bounds.id,
@@ -1057,6 +1194,37 @@ export async function placeNightBet(opts: {
             },
           });
         }
+      } else if (usePersonal) {
+        const u = await tx.user.findUnique({
+          where: { id: opts.actorUserId },
+          select: { blueberryBalance: true },
+        });
+        if (!u) throw new Error("user");
+        const bal = Math.max(0, u.blueberryBalance || 0);
+        if (bal < amount) throw new Error("insufficient_personal");
+
+        if (mode === "topup" && existing) {
+          await tx.factionNightBet.update({
+            where: { id: existing.id },
+            data: { amount: existing.amount + amount },
+          });
+        } else {
+          await tx.factionNightBet.create({
+            data: {
+              windowId: bounds.id,
+              fromFactionId: null,
+              pickFactionId: opts.pickFactionId,
+              amount,
+              placedByUserId: opts.actorUserId,
+              isPersonal: true,
+              status: "pending",
+            },
+          });
+        }
+        await tx.user.update({
+          where: { id: opts.actorUserId },
+          data: { blueberryBalance: bal - amount },
+        });
       } else {
         const f = await tx.faction.findUnique({
           where: { id: opts.fromFactionId },
@@ -1122,6 +1290,9 @@ export async function placeNightBet(opts: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (msg === "insufficient") return { ok: false, error: "insufficient" };
+    if (msg === "insufficient_personal") {
+      return { ok: false, error: "insufficient_personal" };
+    }
     console.error("placeNightBet", e);
     return { ok: false, error: "debit" };
   }

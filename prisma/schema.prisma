@@ -720,12 +720,12 @@ model FactionNightBetWindow {
   bets FactionNightBet[]
 }
 
-/// Ставка на гринд: из казны фракции или личная ставка Keech (isPersonal).
+/// Ставка на гринд: казна фракции или личный B$ игрока / Keech (isPersonal).
 model FactionNightBet {
   id             String   @id @default(cuid())
   windowId       String
   window         FactionNightBetWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
-  /// null + isPersonal = личная ставка Keech (личный B$).
+  /// null + isPersonal = личная ставка (игрок или Keech).
   fromFactionId  String?
   fromFaction    Faction? @relation("NightBetFrom", fields: [fromFactionId], references: [id], onDelete: Cascade)
   pickFactionId  String
@@ -733,7 +733,7 @@ model FactionNightBet {
   amount         Int
   placedByUserId String
   placedBy       User     @relation(fields: [placedByUserId], references: [id], onDelete: Cascade)
-  /// Личная ставка Keech (не из казны фракции).
+  /// Личный B$ (не казна). Keech — безлимит без списания.
   isPersonal     Boolean  @default(false)
   /// pending | won | lost | refunded
   status         String   @default("pending")
