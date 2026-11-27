@@ -158,6 +158,8 @@ export function FactionHrPanel({
   }>({ key: "pct", dir: "desc" });
   const [contractBlockOpen, setContractBlockOpen] = useState(false);
   const [balanceBlockOpen, setBalanceBlockOpen] = useState(false);
+  const [salaryForeignOpen, setSalaryForeignOpen] = useState(false);
+  const [salaryForeignNick, setSalaryForeignNick] = useState("");
   const [selfBusy, setSelfBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -242,7 +244,16 @@ export function FactionHrPanel({
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        setErr(json.error || "Ошибка");
+        const msg = json.error || "Ошибка";
+        if (
+          op === "set_salary" &&
+          /не состоит в вашей фракции/i.test(msg)
+        ) {
+          setSalaryForeignNick(String(body.nick || ""));
+          setSalaryForeignOpen(true);
+          return;
+        }
+        setErr(msg);
         return;
       }
       await load();
@@ -251,6 +262,22 @@ export function FactionHrPanel({
     } finally {
       setBusy(false);
     }
+  }
+
+  function trySetSalary(player: SalaryPlayer, pct: number) {
+    const myId = data?.myFactionId;
+    const keech = Boolean(data?.isKeech);
+    if (!keech && myId && player.factionId !== myId) {
+      setSalaryForeignNick(player.nick);
+      setSalaryForeignOpen(true);
+      return;
+    }
+    void run("set_salary", {
+      userId: player.userId,
+      factionId: player.factionId,
+      pct,
+      nick: player.nick,
+    });
   }
 
   const salaryFactions = data?.salaryFactions || [];
@@ -538,8 +565,9 @@ export function FactionHrPanel({
         <div className="xfer-tab-body xfer-tables faction-hr-salaries">
           <p className="muted faction-hr-hint">
             Все игроки пятёрки и Легиона. Пресет % от гринда за ночное окно →
-            личный B$ в 01:00 МСК (с казны фракции игрока). Менять % может штаб
-            своей фракции{data.isKeech ? " · Keech — любой" : ""}.
+            личный B$ в 01:00 МСК (с казны фракции игрока). Глава и зам ставят
+            ЗП только своим; чужая фракция — заглушка «не состоит в вашей
+            фракции»{data.isKeech ? " · Keech может любой" : ""}.
           </p>
           <div className="faction-balances-filters">
             <div className="xfer-nick-filter">
@@ -734,7 +762,7 @@ export function FactionHrPanel({
                       )}
                     </td>
                     <td>
-                      {m.canEdit ? (
+                      {manage ? (
                         <div className="faction-hr-pct-row">
                           <button
                             type="button"
@@ -742,13 +770,7 @@ export function FactionHrPanel({
                               m.salaryPct === 0 ? " is-on" : ""
                             }`}
                             disabled={busy}
-                            onClick={() =>
-                              void run("set_salary", {
-                                userId: m.userId,
-                                factionId: m.factionId,
-                                pct: 0,
-                              })
-                            }
+                            onClick={() => trySetSalary(m, 0)}
                           >
                             0
                           </button>
@@ -760,20 +782,14 @@ export function FactionHrPanel({
                                 m.salaryPct === p ? " is-on" : ""
                               }`}
                               disabled={busy}
-                              onClick={() =>
-                                void run("set_salary", {
-                                  userId: m.userId,
-                                  factionId: m.factionId,
-                                  pct: p,
-                                })
-                              }
+                              onClick={() => trySetSalary(m, p)}
                             >
                               {p}%
                             </button>
                           ))}
                         </div>
                       ) : (
-                        <span className="muted">только штаб фракции</span>
+                        <span className="muted">только штаб</span>
                       )}
                     </td>
                   </tr>
@@ -992,6 +1008,57 @@ export function FactionHrPanel({
                 type="button"
                 className="btn primary"
                 onClick={() => setBalanceBlockOpen(false)}
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </DraggableModal>
+      ) : null}
+
+      {salaryForeignOpen ? (
+        <DraggableModal
+          open
+          closeOnBackdrop
+          onClose={() => setSalaryForeignOpen(false)}
+        >
+          <header
+            className="profile-match-modal-head"
+            data-drag-handle
+            title="Перетащить окно"
+          >
+            <div>
+              <h2 className="profile-mail-modal-title">Чужая фракция</h2>
+              <p className="muted">Зарплату ставить нельзя</p>
+            </div>
+            <button
+              type="button"
+              className="profile-match-modal-close"
+              onClick={() => setSalaryForeignOpen(false)}
+            >
+              ×
+            </button>
+          </header>
+          <div className="profile-match-modal-body">
+            <p>
+              {salaryForeignNick ? (
+                <>
+                  Игрок <strong className="xfer-nick">{salaryForeignNick}</strong>{" "}
+                  не состоит в вашей фракции.
+                </>
+              ) : (
+                <>Игрок не состоит в вашей фракции.</>
+              )}
+            </p>
+            <p className="muted">
+              Глава и зам назначают % только своим бойцам. ЗП чужой фракции
+              трогать нельзя.
+            </p>
+            <div className="clan-invite-row" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setSalaryForeignOpen(false)}
               >
                 Понятно
               </button>

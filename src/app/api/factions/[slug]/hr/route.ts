@@ -216,7 +216,7 @@ export async function POST(req: Request, ctx: Ctx) {
     const targetFactionId = String(body.factionId || factionId).trim() || factionId;
     if (targetFactionId !== factionId && !gate.loaded.view!.keech) {
       return NextResponse.json(
-        { error: "ЗП другой фракции — только Keech" },
+        { error: "Игрок не состоит в вашей фракции" },
         { status: 403 },
       );
     }
