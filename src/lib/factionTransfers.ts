@@ -1317,6 +1317,13 @@ export async function acceptTransferOffer(opts: ExecOpts) {
   }
 
   const until = new Date(Date.now() + TRANSFER_LOCK_DAYS * 86400_000);
+  const soldUser = await prisma.user.findUnique({
+    where: { id: playerId },
+    select: { nick: true, steamName: true },
+  });
+  const soldNick = soldUser?.nick || soldUser?.steamName || "игрок";
+  const buyerName = offer.fromFaction?.name || "покупатель";
+  const sellerName = offer.listing.faction?.name || "продавец";
 
   await prisma.$transaction(async (tx) => {
     if (cash > 0) {
@@ -1330,7 +1337,7 @@ export async function acceptTransferOffer(opts: ExecOpts) {
         -cash,
         "transfer_out",
         `xfer_out:${offer.id}`,
-        `Оплата трансфера`,
+        `Покупка ${soldNick} у «${sellerName}» (−${cash.toLocaleString("ru-RU")} B$)`,
         opts.actorUserId,
         null,
       );
@@ -1340,7 +1347,7 @@ export async function acceptTransferOffer(opts: ExecOpts) {
         cash,
         "transfer_in",
         `xfer_in:${offer.id}`,
-        `Поступление с трансфера`,
+        `Продажа ${soldNick} → «${buyerName}» (+${cash.toLocaleString("ru-RU")} B$)`,
         opts.actorUserId,
         null,
       );
