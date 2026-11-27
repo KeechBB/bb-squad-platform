@@ -381,7 +381,7 @@ export async function loadMyValueReport(opts: {
       grind: grindCum,
       cw: cwCum,
       founding,
-      total: market + grindCum + cwCum + founding,
+      total: market + grindCum,
     };
   });
 
