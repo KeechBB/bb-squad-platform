@@ -29477,6 +29477,178 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   max-width: 440px;
 }
 
+/* —— Сезоны (кнопка 8) —— */
+.faction-seasons {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.faction-seasons-now {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: rgba(15, 23, 42, 0.55);
+}
+.faction-seasons-now-label {
+  margin: 0 0 2px;
+  font-size: 0.8rem;
+}
+.faction-seasons-now-title {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+}
+.faction-seasons-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.faction-seasons-badge.is-skip {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.faction-seasons-badge.is-on {
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+.faction-seasons-next {
+  margin: 10px 0 0;
+}
+.faction-seasons-tiers {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+@media (max-width: 920px) {
+  .faction-seasons-tiers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.faction-seasons-tier {
+  min-width: 0;
+  padding: 8px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(7, 9, 16, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+}
+.faction-seasons-tier strong {
+  color: #e2e8f0;
+}
+.faction-seasons-rules {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.xfer-table tr.is-cur-season td {
+  background: rgba(167, 139, 250, 0.1);
+}
+
+/* —— FAQ (кнопка 10) —— */
+.faction-faq {
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.faction-faq-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.9fr);
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+@media (max-width: 980px) {
+  .faction-faq-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.faction-faq-detail {
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(7, 9, 16, 0.55);
+  overflow: auto;
+}
+.faction-faq-detail-title {
+  margin: 0 0 4px;
+  font-size: 1.2rem;
+}
+.faction-faq-detail-blurb {
+  margin: 0 0 12px;
+}
+.faction-faq-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.faction-faq-detail-body p {
+  margin: 0;
+}
+.faction-faq-tiles {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+  overflow: auto;
+}
+.faction-faq-tile {
+  min-width: 0;
+  min-height: 72px;
+  padding: 10px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.faction-faq-tile:hover {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: rgba(167, 139, 250, 0.1);
+}
+.faction-faq-tile.is-active {
+  border-color: rgba(167, 139, 250, 0.65);
+  background: rgba(91, 33, 182, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(196, 181, 253, 0.25);
+}
+.faction-faq-tile-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+.faction-faq-tile-blurb {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  line-height: 1.25;
+}
+
 @media (max-width: 1100px) {
   .faction-mgmt-grid {
     grid-template-columns: 1fr;

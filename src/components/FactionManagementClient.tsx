@@ -13,6 +13,8 @@ import { FactionTransfers } from "@/components/FactionTransfers";
 import { FactionHrPanel } from "@/components/FactionHrPanel";
 import { FactionPlayerValuesPanel } from "@/components/FactionPlayerValuesPanel";
 import { FactionAuctionPanel } from "@/components/FactionAuctionPanel";
+import { FactionSeasonsPanel } from "@/components/FactionSeasonsPanel";
+import { FactionFaqPanel } from "@/components/FactionFaqPanel";
 import { BdAmount } from "@/components/BdMark";
 
 function formatJoinedAt(iso: string) {
@@ -33,6 +35,8 @@ type MgmtPanel =
   | "hr"
   | "values"
   | "auction"
+  | "seasons"
+  | "faq"
   | null;
 
 type NavBtn = {
@@ -50,9 +54,9 @@ const NAV_BUTTONS: NavBtn[] = [
   { id: 5, label: "Контракты и зарплаты", panel: "hr", ready: true },
   { id: 6, label: "Стоимость игроков", panel: "values", ready: true },
   { id: 7, label: "Аукцион", panel: "auction", ready: true },
-  { id: 8, label: "Кнопка 8", panel: null, ready: false },
+  { id: 8, label: "Сезоны", panel: "seasons", ready: true },
   { id: 9, label: "Кнопка 9", panel: null, ready: false },
-  { id: 10, label: "Кнопка 10", panel: null, ready: false },
+  { id: 10, label: "FAQ", panel: "faq", ready: true },
 ];
 
 export function FactionManagementClient({
@@ -340,6 +344,8 @@ export function FactionManagementClient({
                     canManage={view.canManage || view.keech}
                   />
                 ) : null}
+                {panel === "seasons" ? <FactionSeasonsPanel /> : null}
+                {panel === "faq" ? <FactionFaqPanel /> : null}
                 {!panel ? (
                   <p className="muted">Выберите раздел слева.</p>
                 ) : null}

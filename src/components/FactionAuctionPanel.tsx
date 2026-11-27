@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BdAmount } from "@/components/BdMark";
+import { getCurrentSeason } from "@/lib/factionSeasons";
 
 type LotBid = {
   factionId: string;
@@ -107,6 +108,8 @@ export function FactionAuctionPanel({
     return () => window.clearInterval(id);
   }, [load]);
 
+  const season = useMemo(() => getCurrentSeason(), []);
+
   async function placeBid(lotId: string) {
     if (!data?.canManage && !canManage) return;
     const raw = bidDraft[lotId] || "";
@@ -173,6 +176,13 @@ export function FactionAuctionPanel({
           <strong>
             <BdAmount n={data.bankBalance} />
           </strong>
+          {season ? (
+            <>
+              {" · "}
+              {season.label}
+              {!season.endAuctionEnabled ? " · межсезон пропуск" : null}
+            </>
+          ) : null}
         </p>
       </div>
 
