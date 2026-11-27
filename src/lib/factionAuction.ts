@@ -619,6 +619,8 @@ export async function listAuctionBoard(opts?: { factionId?: string }) {
     bankBalance: bank?.blueberryBalance ?? 0,
     hours: AUCTION_HOURS,
     recruitCutRatio: AUCTION_RECRUIT_CUT_RATIO,
+    /** Фиксированный пресет 5 фракций для сетки ставок. */
+    presetFactions: [...SRI_FACTION_NAMES],
     lots: lots.map((l) => {
       const active = l.bids.filter((b) => b.status === "ACTIVE" || b.status === "WON");
       const top = active[0] || null;

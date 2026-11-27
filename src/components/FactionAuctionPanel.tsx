@@ -39,9 +39,12 @@ type Payload = {
   bankBalance: number;
   hours: number;
   recruitCutRatio: number;
+  presetFactions?: string[];
   lots: Lot[];
   error?: string;
 };
+
+const FALLBACK_FACTIONS = ["Орда", "Улей", "Сброд", "Стая", "Табор"];
 
 function fmtRemain(ms: number) {
   if (ms <= 0) return "завершён";
@@ -59,6 +62,11 @@ function fmtWhen(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function bidAmountFor(lot: Lot, factionName: string): number {
+  const hit = lot.bids.find((b) => b.factionName === factionName);
+  return hit ? hit.amountBd : 0;
 }
 
 export function FactionAuctionPanel({
@@ -142,6 +150,8 @@ export function FactionAuctionPanel({
   const manage = canManage && data.canManage;
   const openLots = data.lots.filter((l) => l.status === "OPEN");
   const doneLots = data.lots.filter((l) => l.status !== "OPEN");
+  const presets =
+    data.presetFactions?.length === 5 ? data.presetFactions : FALLBACK_FACTIONS;
 
   return (
     <div className="faction-auction">
@@ -176,7 +186,7 @@ export function FactionAuctionPanel({
           {openLots.map((l) => (
             <article key={l.id} className="faction-auction-lot">
               <header className="faction-auction-lot-head">
-                <div>
+                <div className="faction-auction-lot-who">
                   <strong className="xfer-nick">{l.nick}</strong>
                   <span className="muted"> · {l.steamId || "—"}</span>
                 </div>
@@ -184,52 +194,89 @@ export function FactionAuctionPanel({
                   ещё {fmtRemain(l.remainingMs)}
                 </span>
               </header>
-              <p className="muted">
-                До {fmtWhen(l.endsAt)} МСК
-                {l.topBid
-                  ? ` · лидер: ${l.topBid.factionName} · `
-                  : " · ставок нет"}
-                {l.topBid ? <BdAmount n={l.topBid.amountBd} /> : null}
-                {l.myBid ? (
-                  <>
-                    {" · ваша ставка: "}
-                    <BdAmount n={l.myBid.amountBd} />
-                  </>
-                ) : null}
-              </p>
-              {l.bids.length ? (
-                <ul className="faction-auction-bidlist">
-                  {l.bids.map((b) => (
-                    <li key={`${b.factionId}-${b.amountBd}`}>
-                      {b.factionName}: <BdAmount n={b.amountBd} />
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {manage ? (
-                <div className="faction-auction-bidform">
-                  <input
-                    className="xfer-nick-filter-input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="Сумма B$"
-                    value={bidDraft[l.id] || ""}
-                    onChange={(e) =>
-                      setBidDraft((d) => ({ ...d, [l.id]: e.target.value }))
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="btn primary"
-                    disabled={busy}
-                    onClick={() => void placeBid(l.id)}
-                  >
-                    Поставить
-                  </button>
+
+              <div className="faction-auction-lot-body">
+                <div className="faction-auction-lot-meta">
+                  <p className="muted">
+                    До {fmtWhen(l.endsAt)} МСК
+                    {l.topBid
+                      ? ` · лидер: ${l.topBid.factionName}`
+                      : " · ставок нет"}
+                    {l.myBid ? (
+                      <>
+                        {" · ваша: "}
+                        <BdAmount n={l.myBid.amountBd} />
+                      </>
+                    ) : null}
+                  </p>
+                  {manage ? (
+                    <div className="faction-auction-bidform">
+                      <input
+                        className="xfer-nick-filter-input"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Сумма B$"
+                        value={bidDraft[l.id] || ""}
+                        onChange={(e) =>
+                          setBidDraft((d) => ({
+                            ...d,
+                            [l.id]: e.target.value,
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="btn primary"
+                        disabled={busy}
+                        onClick={() => void placeBid(l.id)}
+                      >
+                        Поставить
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="muted">Ставки — только штаб фракции.</p>
+                  )}
                 </div>
-              ) : (
-                <p className="muted">Ставки — только штаб фракции.</p>
-              )}
+
+                <div
+                  className="faction-auction-presets"
+                  aria-label="Ставки фракций"
+                >
+                  {presets.map((name) => {
+                    const amt = bidAmountFor(l, name);
+                    const isLead =
+                      Boolean(l.topBid) &&
+                      l.topBid!.factionName === name &&
+                      amt > 0;
+                    const isMine = name === data.factionName;
+                    return (
+                      <div
+                        key={name}
+                        className={`faction-auction-preset${
+                          isLead ? " is-lead" : ""
+                        }${isMine ? " is-mine" : ""}${
+                          amt > 0 ? " has-bid" : ""
+                        }`}
+                      >
+                        <span className="faction-auction-preset-name">
+                          {name}
+                        </span>
+                        <span
+                          className={`faction-auction-preset-amt${
+                            amt > 0 ? " is-plus" : " is-zero"
+                          }`}
+                        >
+                          {amt > 0 ? (
+                            <BdAmount n={amt} />
+                          ) : (
+                            <span>0</span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </article>
           ))}
         </div>

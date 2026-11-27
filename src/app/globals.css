@@ -29355,10 +29355,13 @@ body:has(.faction-mgmt-denied-page) .site-footer {
 /* Аукцион (кнопка 7) */
 .faction-auction {
   flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow-x: hidden;
   overflow: auto;
 }
 .faction-auction-meta {
@@ -29369,34 +29372,106 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
 }
 .faction-auction-lot {
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 12px;
   padding: 12px 14px;
   background: rgba(7, 9, 16, 0.55);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 .faction-auction-lot-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  min-width: 0;
 }
-.faction-auction-bidlist {
-  margin: 6px 0 10px;
-  padding-left: 1.1rem;
-  color: #cbd5e1;
-  font-size: 0.88rem;
+.faction-auction-lot-who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.faction-auction-lot-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 10px 14px;
+  align-items: start;
+  min-width: 0;
+}
+@media (max-width: 920px) {
+  .faction-auction-lot-body {
+    grid-template-columns: 1fr;
+  }
+}
+.faction-auction-lot-meta {
+  min-width: 0;
+}
+.faction-auction-lot-meta > .muted {
+  margin: 0 0 8px;
+}
+.faction-auction-presets {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+.faction-auction-preset {
+  min-width: 0;
+  padding: 6px 6px 7px;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.55);
+  text-align: center;
+}
+.faction-auction-preset.has-bid {
+  border-color: rgba(167, 139, 250, 0.35);
+}
+.faction-auction-preset.is-lead {
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(22, 101, 52, 0.22);
+}
+.faction-auction-preset.is-mine {
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.35);
+}
+.faction-auction-preset-name {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.faction-auction-preset-amt {
+  display: block;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.faction-auction-preset-amt.is-zero {
+  color: #64748b;
+  font-weight: 600;
 }
 .faction-auction-bidform {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  min-width: 0;
 }
 .faction-auction-bidform .xfer-nick-filter-input {
   max-width: 10rem;
+  min-width: 0;
 }
 .faction-mgmt-denied-modal {
   max-width: 440px;
