@@ -6,6 +6,7 @@ import {
   forceCloseNightTraining,
   nightBetBoard,
   nightBetHistory,
+  nightFactionGrindDayHistory,
   nightGrindPlayers,
   placeNightBet,
 } from "@/lib/factionNightBets";
@@ -46,6 +47,11 @@ export async function GET(req: Request, ctx: Ctx) {
   if (url.searchParams.get("history") === "1") {
     const rows = await nightBetHistory();
     return NextResponse.json({ rows });
+  }
+
+  if (url.searchParams.get("grindDays") === "1") {
+    const days = await nightFactionGrindDayHistory({ days: 45 });
+    return NextResponse.json({ days });
   }
 
   const grindFactionId = String(url.searchParams.get("grindPlayers") || "").trim();

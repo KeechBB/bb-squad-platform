@@ -787,6 +787,101 @@ export async function nightBetBoard(opts: {
 
 /** История ставок фракции или личных ставок Keech. */
 /** Общая книга ставок (все фракции + личные Keech), не только «свои». */
+function shiftYmd(ymd: string, deltaDays: number): string | null {
+  const p = parseYmd(ymd);
+  if (!p) return null;
+  const d = new Date(Date.UTC(p.y, p.m - 1, p.d));
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export type NightFactionGrindDayRow = {
+  factionId: string;
+  name: string;
+  color: string;
+  amount: number;
+  /** Лидер по гринду за этот день / победитель окна. */
+  isLeader: boolean;
+  isWinner: boolean;
+};
+
+export type NightFactionGrindDay = {
+  windowId: string;
+  dayLabel: string;
+  status: string;
+  rows: NightFactionGrindDayRow[];
+  /** Макс. гринд дня (для подсветки). */
+  leaderAmount: number;
+};
+
+/**
+ * История по дням: сколько каждая фракция нагриндила за ночное окно (21:00–01:00).
+ * Берём последние N training-day, даже если окно ставок ещё не создано.
+ */
+export async function nightFactionGrindDayHistory(opts?: {
+  days?: number;
+}): Promise<NightFactionGrindDay[]> {
+  const n = Math.min(60, Math.max(1, opts?.days ?? 30));
+  const factions = await listGrindFactions();
+  if (!factions.length) return [];
+  const factionIds = factions.map((f) => f.id);
+
+  const startId = trainingDayYmd(new Date());
+  const ymds: string[] = [];
+  let cur: string | null = startId;
+  for (let i = 0; i < n && cur; i += 1) {
+    ymds.push(cur);
+    cur = shiftYmd(cur, -1);
+  }
+
+  const windows = await prisma.factionNightBetWindow.findMany({
+    where: { id: { in: ymds } },
+    select: { id: true, status: true, winnerFactionIds: true },
+  });
+  const winBy = new Map(windows.map((w) => [w.id, w]));
+
+  const out: NightFactionGrindDay[] = [];
+  for (const ymd of ymds) {
+    const bounds = nightBetBoundsForDay(ymd);
+    if (!bounds) continue;
+    const sums = await nightGrindSums(factionIds, bounds);
+    const win = winBy.get(ymd);
+    const winners = new Set(win?.winnerFactionIds || []);
+    let leaderAmount = 0;
+    for (const id of factionIds) {
+      leaderAmount = Math.max(leaderAmount, sums.get(id) || 0);
+    }
+    const rows: NightFactionGrindDayRow[] = factions
+      .map((f) => {
+        const info = parseFactionInfo(f.info);
+        const amount = sums.get(f.id) || 0;
+        return {
+          factionId: f.id,
+          name: f.name,
+          color: factionUiColor(f.name, f.slug, info.color),
+          amount,
+          isLeader: leaderAmount > 0 && amount === leaderAmount,
+          isWinner: winners.has(f.id),
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.amount - a.amount || a.name.localeCompare(b.name, "ru"),
+      );
+    out.push({
+      windowId: ymd,
+      dayLabel: formatNightBetDayLabel(bounds),
+      status: win?.status || "open",
+      rows,
+      leaderAmount,
+    });
+  }
+  return out;
+}
+
 export async function nightBetHistory(_opts?: {
   fromFactionId?: string | null;
   personalUserId?: string | null;

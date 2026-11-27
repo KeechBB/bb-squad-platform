@@ -1061,6 +1061,25 @@ export function FactionNightBetsBoard({
     total: number;
     players: { userId: string | null; nick: string; amount: number }[];
   } | null>(null);
+  const [grindDays, setGrindDays] = useState<
+    {
+      windowId: string;
+      dayLabel: string;
+      status: string;
+      leaderAmount: number;
+      rows: {
+        factionId: string;
+        name: string;
+        color: string;
+        amount: number;
+        isLeader: boolean;
+        isWinner: boolean;
+      }[];
+    }[]
+  >([]);
+  const [grindDaysLoading, setGrindDaysLoading] = useState(false);
+  const [grindDaysPage, setGrindDaysPage] = useState(0);
+  const GRIND_DAYS_PER_PAGE = 5;
 
   const reload = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -1102,6 +1121,32 @@ export function FactionNightBetsBoard({
       window.clearInterval(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload by loadKey only
+  }, [slug, loadKey]);
+
+  useEffect(() => {
+    if (loadKey < 1) return;
+    const ctrl = new AbortController();
+    setGrindDaysLoading(true);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/factions/${encodeURIComponent(slug)}/night-bets?grindDays=1`,
+          { cache: "no-store", signal: ctrl.signal },
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+          days?: typeof grindDays;
+          error?: string;
+        };
+        if (!res.ok || ctrl.signal.aborted) return;
+        setGrindDays(json.days || []);
+        setGrindDaysPage(0);
+      } catch (err) {
+        if ((err as { name?: string }).name === "AbortError") return;
+      } finally {
+        if (!ctrl.signal.aborted) setGrindDaysLoading(false);
+      }
+    })();
+    return () => ctrl.abort();
   }, [slug, loadKey]);
 
   async function submitBet() {
@@ -1262,6 +1307,16 @@ export function FactionNightBetsBoard({
   const historyPageDays = historyDays.slice(
     historyPageSafe * HISTORY_DAYS_PER_PAGE,
     historyPageSafe * HISTORY_DAYS_PER_PAGE + HISTORY_DAYS_PER_PAGE
+  );
+
+  const grindDaysPageCount = Math.max(
+    1,
+    Math.ceil(grindDays.length / GRIND_DAYS_PER_PAGE),
+  );
+  const grindDaysPageSafe = Math.min(grindDaysPage, grindDaysPageCount - 1);
+  const grindDaysVisible = grindDays.slice(
+    grindDaysPageSafe * GRIND_DAYS_PER_PAGE,
+    grindDaysPageSafe * GRIND_DAYS_PER_PAGE + GRIND_DAYS_PER_PAGE,
   );
 
   if (loadKey < 1) {
@@ -1500,6 +1555,101 @@ export function FactionNightBetsBoard({
 
         </>
       ) : null}
+
+      <section className="faction-night-bets-dayhist" aria-label="История гринда по дням">
+        <div className="faction-night-bets-dayhist-head">
+          <h4>История по дням · кто сколько заработал</h4>
+          <p className="muted">
+            Гринд фракций за ночное окно (21:00–01:00 МСК).{" "}
+            <mark className="faction-guide-hi">Жёлтым</mark> — лидер дня.
+          </p>
+        </div>
+        {grindDaysLoading && !grindDays.length ? (
+          <p className="muted">Загрузка истории…</p>
+        ) : null}
+        {!grindDaysLoading && !grindDays.length ? (
+          <p className="muted">Пока нет дней с данными.</p>
+        ) : null}
+        {grindDaysVisible.map((day) => (
+          <article key={day.windowId} className="faction-night-bets-dayhist-day">
+            <header className="faction-night-bets-dayhist-day-head">
+              <strong>{day.dayLabel}</strong>
+              <span className="muted">
+                {day.status === "settled" ? "итог закрыт" : "окно открыто / без ставок"}
+                {day.leaderAmount > 0 ? (
+                  <>
+                    {" · лидер "}
+                    <mark className="faction-guide-hi">
+                      {fmtBd(day.leaderAmount)} B$
+                    </mark>
+                  </>
+                ) : null}
+              </span>
+            </header>
+            <ul className="faction-night-bets-dayhist-rows">
+              {day.rows.map((r, i) => (
+                <li
+                  key={r.factionId}
+                  className={`${r.isLeader ? "is-leader" : ""}${
+                    r.isWinner ? " is-winner" : ""
+                  }`}
+                >
+                  <span className="faction-night-bets-dayhist-place">{i + 1}</span>
+                  <span
+                    className="faction-night-bets-dayhist-name"
+                    style={{ color: r.color }}
+                  >
+                    {r.name}
+                    {r.isWinner ? (
+                      <mark className="faction-guide-hi"> ★ победа ставок</mark>
+                    ) : null}
+                    {r.isLeader && !r.isWinner ? (
+                      <mark className="faction-guide-hi"> ★ лидер гринда</mark>
+                    ) : null}
+                  </span>
+                  <strong
+                    className={
+                      r.isLeader ? "faction-night-bets-dayhist-amt is-hi" : undefined
+                    }
+                  >
+                    {fmtBd(r.amount)} B$
+                  </strong>
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
+        {grindDays.length > GRIND_DAYS_PER_PAGE ? (
+          <div className="faction-night-bets-dayhist-pager">
+            <button
+              type="button"
+              className="btn"
+              disabled={grindDaysPageSafe <= 0}
+              onClick={() => setGrindDaysPage((p) => Math.max(0, p - 1))}
+            >
+              Назад
+            </button>
+            <span className="muted">
+              {grindDaysPageSafe * GRIND_DAYS_PER_PAGE + 1}–
+              {Math.min(
+                grindDays.length,
+                grindDaysPageSafe * GRIND_DAYS_PER_PAGE + GRIND_DAYS_PER_PAGE,
+              )}{" "}
+              / {grindDays.length} · стр. {grindDaysPageSafe + 1}/{grindDaysPageCount}
+            </span>
+            <button
+              type="button"
+              className="btn"
+              disabled={grindDaysPageSafe >= grindDaysPageCount - 1}
+              onClick={() =>
+                setGrindDaysPage((p) => Math.min(grindDaysPageCount - 1, p + 1))
+              }
+            >
+              Дальше
+            </button>
+          </div>
+        ) : null}
+      </section>
 
       <DraggableModal
         open={grindDetailOpen}

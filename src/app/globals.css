@@ -25020,6 +25020,85 @@ body:has(.faction-page) .site-footer {
   padding-top: 4px;
   border-top: 1px solid rgba(52, 211, 153, 0.25);
 }
+
+.faction-night-bets-dayhist {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(52, 211, 153, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.faction-night-bets-dayhist-head h4 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  color: #ecfdf5;
+}
+.faction-night-bets-dayhist-head .muted {
+  margin: 0;
+  font-size: 0.86rem;
+}
+.faction-night-bets-dayhist-day {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  background: rgba(7, 9, 16, 0.45);
+  padding: 10px 12px;
+  min-width: 0;
+}
+.faction-night-bets-dayhist-day-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-bottom: 8px;
+}
+.faction-night-bets-dayhist-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.faction-night-bets-dayhist-rows li {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.4);
+  font-variant-numeric: tabular-nums;
+}
+.faction-night-bets-dayhist-rows li.is-leader {
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  background: rgba(250, 204, 21, 0.08);
+}
+.faction-night-bets-dayhist-place {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+.faction-night-bets-dayhist-name {
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.faction-night-bets-dayhist-amt.is-hi {
+  color: #fde68a;
+  font-weight: 800;
+}
+.faction-night-bets-dayhist-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 640px) {
   .faction-night-bets-card-metrics {
     grid-template-columns: repeat(3, 1fr);
