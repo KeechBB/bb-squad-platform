@@ -60,9 +60,9 @@ TEAM_MARK_RE = re.compile(
 )
 STAMP_RE = re.compile(r"\[(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2})")
 STRIP_TAG = re.compile(r"^[\[【〔][^\]】〕]*[\]】〕]\s*")
-# Layer / map for row context (Narva_RAAS_v1 → Narva)
+# Layer / map (Narva_RAAS_v1 → Narva) — только явные пути карты.
 LAYER_RE = re.compile(
-    r"(?:LogSquad.*?Layer[:\s]+|Browse:\s*/Game/Maps/[^/\s]+/)(?P<layer>[A-Za-z0-9_]+)",
+    r"(?:Browse:\s*)?/Game/Maps/[^/\s]+/(?P<layer>[A-Za-z0-9_]+)",
     re.I,
 )
 
@@ -248,8 +248,11 @@ def parse_file(
             if not killer_steam:
                 continue
 
-            victim_name = clean_nick(dm.group("victim"))
-            victim_steam = nick_steam.get(victim_name.lower()) if victim_name else None
+            victim_raw = (dm.group("victim") or "").strip()
+            victim_key = clean_nick(victim_raw)
+            victim_steam = nick_steam.get(victim_key.lower()) if victim_key else None
+            if not victim_steam and victim_raw:
+                victim_steam = nick_steam.get(victim_raw.lower())
             if not victim_steam:
                 # last resort: ignore — cannot attribute victim
                 continue
@@ -272,8 +275,9 @@ def parse_file(
             if not same:
                 continue
 
-            if not victim_name:
-                victim_name = steam_nick.get(victim_steam, victim_steam)
+            victim_display = victim_raw or victim_key or steam_nick.get(
+                victim_steam, victim_steam
+            )
             if not ymd:
                 ymd, clock, disp = msk_stamp(line)
 
@@ -282,15 +286,19 @@ def parse_file(
             if not wep or wep.startswith("кит "):
                 wep = steam_last_wep.get(killer_steam) or wep or "—"
 
+            map_name = ""
+            if current_map:
+                map_name = current_map.split("_")[0]
+
             row = {
                 "date": disp or ymd,
                 "ymd": ymd,
                 "clock": clock,
-                "victim": victim_name,
+                "victim": victim_display,
                 "victimSteamId": victim_steam,
                 "server": server,
                 "weapon": wep,
-                "map": current_map or "",
+                "map": map_name,
             }
             by_steam[killer_steam].append(row)
             added += 1
