@@ -752,6 +752,8 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
       let c = 0;
       if (closedSort.key === "type") c = cmpStr(a.typeLabel, b.typeLabel);
       else if (closedSort.key === "player") c = cmpStr(a.playerNick, b.playerNick);
+      else if (closedSort.key === "from") c = cmpStr(a.fromFaction.name, b.fromFaction.name);
+      else if (closedSort.key === "to") c = cmpStr(a.toFaction.name, b.toFaction.name);
       else if (closedSort.key === "factions")
         c = cmpStr(`${a.fromFaction.name}${a.toFaction.name}`, `${b.fromFaction.name}${b.toFaction.name}`);
       else if (closedSort.key === "cash") c = (a.cashAmount || 0) - (b.cashAmount || 0);
@@ -1457,11 +1459,19 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
                       }
                     />
                     <SortTh
-                      label="От / Кому"
-                      active={closedSort.key === "factions"}
+                      label="От"
+                      active={closedSort.key === "from"}
                       dir={closedSort.dir}
                       onClick={() =>
-                        toggleSort(closedSort, setClosedSort, "factions", closedPage.setPage)
+                        toggleSort(closedSort, setClosedSort, "from", closedPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="Кому"
+                      active={closedSort.key === "to"}
+                      dir={closedSort.dir}
+                      onClick={() =>
+                        toggleSort(closedSort, setClosedSort, "to", closedPage.setPage)
                       }
                     />
                     <SortTh
@@ -1493,16 +1503,15 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
                           </>
                         ) : null}
                       </td>
-                      <td className="muted">
-                        {d.fromFaction.name} → {d.toFaction.name}
-                      </td>
+                      <td className="xfer-faction-from">{d.fromFaction.name}</td>
+                      <td className="xfer-faction-to">{d.toFaction.name}</td>
                       <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
                       <td>{formatWhen(d.updatedAt || d.createdAt)}</td>
                     </tr>
                   ))}
                   {!closedSorted.length ? (
                     <tr>
-                      <td colSpan={5} className="muted">
+                      <td colSpan={6} className="muted">
                         Успешных сделок пока нет.
                       </td>
                     </tr>

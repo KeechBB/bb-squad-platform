@@ -91,14 +91,12 @@ export async function GET(_req: Request, ctx: Ctx) {
         orderBy: { createdAt: "desc" },
         take: 120,
       }),
+      /** Все успешные сделки всех фракций — «От» / «Кому» видно в таблице. */
       prisma.transferOffer.findMany({
-        where: {
-          status: "ACCEPTED",
-          OR: [{ fromFactionId: factionId }, { listing: { factionId } }],
-        },
+        where: { status: "ACCEPTED" },
         include: offerInclude,
         orderBy: { updatedAt: "desc" },
-        take: 40,
+        take: 200,
       }),
       prisma.factionLedgerEntry.findMany({
         where: { factionId },
@@ -155,10 +153,10 @@ export async function GET(_req: Request, ctx: Ctx) {
     const joinedUs = o.fromFaction.id === factionId;
     if (joinedUs) return "Покупка";
     if (leftUs) return "Продажа";
-    // Чужой рынок (не наша сторона): fallback по типу офера.
+    // Чужие сделки (глобальная лента): нейтральный тип, путь смотри в От/Кому.
     if (o.type === "SWAP_CASH") return "Игрок + доплата";
     if (o.type === "SWAP") return "Обмен";
-    if (o.type === "BUY") return "Покупка";
+    if (o.type === "BUY") return "Сделка";
     return o.type;
   }
   function dealSideFor(o: (typeof allPendingOffers)[number]): "in" | "out" | "open" {
