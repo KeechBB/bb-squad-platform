@@ -2569,23 +2569,27 @@ function ledgerKindRu(kind: string) {
   if (kind === "market_buy") return "Покупка на маркете";
   if (kind === "market_sell") return "Продажа на маркете";
   if (kind === "officer_deposit") return "Взнос в казну";
+  if (kind === "member_gift") return "Подарок участнику";
+  if (kind === "officer_withdraw") return "Вывод из казны себе";
   return kind;
 }
 
-/** Комментарий гринда: «TR tr1 · Map · Nick» — ник жёлтым. */
+/** Комментарий: ник в конце после « · » или « → » — жёлтым. */
 function LedgerNote({ note }: { note: string | null }) {
   if (!note) return <>—</>;
-  const sep = " · ";
-  const i = note.lastIndexOf(sep);
-  if (i < 0) return <>{note}</>;
-  const head = note.slice(0, i + sep.length);
-  const nick = note.slice(i + sep.length);
-  return (
-    <span className="xfer-ledger-note">
-      {head}
-      <span className="xfer-nick">{nick}</span>
-    </span>
-  );
+  for (const sep of [" → ", " · "] as const) {
+    const i = note.lastIndexOf(sep);
+    if (i < 0) continue;
+    const nick = note.slice(i + sep.length).trim();
+    if (!nick || nick.length > 48) continue;
+    return (
+      <span className="xfer-ledger-note">
+        {note.slice(0, i + sep.length)}
+        <span className="xfer-nick">{nick}</span>
+      </span>
+    );
+  }
+  return <>{note}</>;
 }
 
 function XferNick({ children }: { children: ReactNode }) {

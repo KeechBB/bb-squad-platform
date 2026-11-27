@@ -35,6 +35,7 @@ import {
 } from "@/lib/blueberryDollar";
 import { mainKitByUserIds } from "@/lib/squadRoles";
 import { buildFactionDayEconomy } from "@/lib/factionDayEconomy";
+import { enrichLedgerNotes } from "@/lib/factionLedgerNotes";
 
 export const runtime = "nodejs";
 
@@ -160,7 +161,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       xferNickByUser[o.listing.playerUserId] || null,
     ]),
   );
-  const dayLedgerForEconomy = dayLedger.map((e) => {
+  const dayLedgerWithXfer = dayLedger.map((e) => {
     const m = String(e.sourceKey || "").match(/^xfer_(?:in|out):(.+)$/);
     const playerNick = m?.[1] ? xferNickByOffer[m[1]] || null : null;
     return {
@@ -168,9 +169,11 @@ export async function GET(_req: Request, ctx: Ctx) {
       kind: e.kind,
       note: e.note,
       createdAt: e.createdAt,
+      sourceKey: e.sourceKey,
       playerNick,
     };
   });
+  const dayLedgerForEconomy = await enrichLedgerNotes(dayLedgerWithXfer);
 
   const ledgerUserIds = [
     ...new Set(ledger.map((e) => e.userId).filter(Boolean) as string[]),
@@ -182,6 +185,20 @@ export async function GET(_req: Request, ctx: Ctx) {
       })
     : [];
   const ledgerUserById = Object.fromEntries(ledgerUsers.map((u) => [u.id, u]));
+  const ledgerEnriched = await enrichLedgerNotes(
+    ledger.map((e) => ({
+      amount: e.amount,
+      kind: e.kind,
+      note: e.note,
+      createdAt: e.createdAt,
+      sourceKey: e.sourceKey,
+      userId: e.userId,
+      id: e.id,
+    })),
+  );
+  const ledgerNoteById = Object.fromEntries(
+    ledgerEnriched.map((e) => [e.id, e.note]),
+  );
 
   /** Входящие по нашим листингам — для штабной панели. */
   const incomingOffers = allPendingOffers.filter((o) => o.listing.faction.id === factionId);
@@ -393,7 +410,7 @@ export async function GET(_req: Request, ctx: Ctx) {
         id: e.id,
         amount: e.amount,
         kind: e.kind,
-        note: e.note,
+        note: ledgerNoteById[e.id] ?? e.note,
         createdAt: e.createdAt.toISOString(),
         label: `${e.amount > 0 ? "+" : ""}${e.amount} ${BD_MARK}`,
         userId: e.userId || null,

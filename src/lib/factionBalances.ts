@@ -11,6 +11,7 @@ import {
   type FactionDayEconomy,
   type FactionDayItem,
 } from "@/lib/factionDayEconomy";
+import { enrichLedgerNotes } from "@/lib/factionLedgerNotes";
 import { CONTRACT_PLAYER_CUT_RATIO } from "@/lib/factionHr";
 import { formatMskYmd } from "@/lib/squadHits";
 
@@ -201,16 +202,18 @@ async function enrichTransferNicks(
   const nickByOffer = Object.fromEntries(
     offers.map((o) => [o.id, nickByUser[o.listing.playerUserId] || null]),
   );
-  return entries.map((e) => {
+  const withXfer = entries.map((e) => {
     const m = String(e.sourceKey || "").match(/^xfer_(?:in|out):(.+)$/);
     return {
       amount: e.amount,
       kind: e.kind,
       note: e.note,
       createdAt: e.createdAt,
+      sourceKey: e.sourceKey,
       playerNick: m?.[1] ? nickByOffer[m[1]] || null : null,
     };
   });
+  return enrichLedgerNotes(withXfer);
 }
 
 export async function factionBalanceDays(

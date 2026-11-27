@@ -328,10 +328,15 @@ export async function giftFactionBdToMember(opts: {
     return { ok: false, error: "gift_officer" };
   }
 
+  const recipient = await prisma.user.findUnique({
+    where: { id: opts.toUserId },
+    select: { nick: true, steamName: true },
+  });
+  const toNick = recipient?.nick || recipient?.steamName || "игрок";
   const sourceKey = `member_gift:${ctx.factionId}:${opts.actorUserId}:${opts.toUserId}:${amount}:${Date.now()}`;
   const note = toSelf
     ? `Вывод ${amount.toLocaleString("ru-RU")} ${BD_MARK} из казны себе`
-    : `Подарок ${amount.toLocaleString("ru-RU")} ${BD_MARK} участнику`;
+    : `Подарок ${amount.toLocaleString("ru-RU")} ${BD_MARK} → ${toNick}`;
 
   try {
     const result = await prisma.$transaction(async (tx) => {

@@ -244,7 +244,10 @@ export async function placeAuctionBid(opts: {
 
   const lot = await prisma.factionAuctionLot.findUnique({
     where: { id: opts.lotId },
-    include: { bids: true },
+    include: {
+      bids: true,
+      user: { select: { nick: true, steamName: true, name: true } },
+    },
   });
   if (!lot || lot.status !== "OPEN") return { ok: false, error: "lot_closed" };
   if (lot.endsAt.getTime() <= Date.now()) {
@@ -276,6 +279,7 @@ export async function placeAuctionBid(opts: {
   const delta = amount - prev;
   if (faction.blueberryBalance < delta) return { ok: false, error: "treasury_low" };
 
+  const lotNick = personLabel(lot.user);
   await ensureAuctionBank();
 
   try {
@@ -300,7 +304,7 @@ export async function placeAuctionBid(opts: {
           amount: -delta,
           kind: "auction_bid",
           sourceKey: `auction_bid:${opts.lotId}:${opts.factionId}:${amount}`,
-          note: `Ставка на аукционе (−${delta.toLocaleString("ru-RU")} ${BD_MARK})`,
+          note: `Ставка на аукционе (−${delta.toLocaleString("ru-RU")} ${BD_MARK}) · ${lotNick}`,
           userId: opts.placedByUserId,
         },
       });
@@ -436,7 +440,7 @@ export async function settleAuctionLot(lotId: string): Promise<{
           amount: b.amountBd,
           kind: "auction_refund",
           sourceKey: `auction_refund:${lot.id}:${b.factionId}`,
-          note: `Возврат ставки с аукциона (+${b.amountBd.toLocaleString("ru-RU")} ${BD_MARK})`,
+          note: `Возврат ставки с аукциона (+${b.amountBd.toLocaleString("ru-RU")} ${BD_MARK}) · ${nick}`,
           userId: lot.userId,
         },
       });
@@ -584,6 +588,11 @@ export async function settleAuctionLot(lotId: string): Promise<{
 
 async function refundAllBids(lotId: string, bidIds: string[]) {
   await ensureAuctionBank();
+  const lotUser = await prisma.factionAuctionLot.findUnique({
+    where: { id: lotId },
+    select: { user: { select: { nick: true, steamName: true, name: true } } },
+  });
+  const lotNick = lotUser ? personLabel(lotUser.user) : "лот";
   for (const id of bidIds) {
     const b = await prisma.factionAuctionBid.findUnique({ where: { id } });
     if (!b || b.status !== "ACTIVE") continue;
@@ -602,7 +611,7 @@ async function refundAllBids(lotId: string, bidIds: string[]) {
           amount: b.amountBd,
           kind: "auction_refund",
           sourceKey: `auction_refund:${lotId}:${b.factionId}`,
-          note: `Возврат ставки с аукциона (+${b.amountBd.toLocaleString("ru-RU")} ${BD_MARK})`,
+          note: `Возврат ставки с аукциона (+${b.amountBd.toLocaleString("ru-RU")} ${BD_MARK}) · ${lotNick}`,
         },
       });
       await tx.factionAuctionBid.update({

@@ -80,6 +80,8 @@ export function ledgerKindLabelRu(kind: string): string {
   if (kind === "market_buy") return "Покупка на маркете";
   if (kind === "market_sell") return "Продажа на маркете";
   if (kind === "officer_deposit") return "Взнос в казну";
+  if (kind === "member_gift") return "Подарок участнику";
+  if (kind === "officer_withdraw") return "Вывод из казны себе";
   return kind;
 }
 
