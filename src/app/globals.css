@@ -29877,6 +29877,17 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   gap: 0.4rem;
   flex-wrap: wrap;
 }
+.faction-balances-factions-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.faction-balances-sort-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+}
 .faction-balances-faction-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

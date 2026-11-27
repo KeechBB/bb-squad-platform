@@ -55,10 +55,51 @@ type PersonalDay = {
 
 type Tab = "factions" | "players";
 
+type PlayerSortKey = "nick" | "faction" | "seat" | "balance";
+type FactionSortKey = "name" | "balance" | "members";
+type SortDir = "asc" | "desc";
+
+const SEAT_RANK: Record<string, number> = {
+  LEADER: 0,
+  DEPUTY: 1,
+  MEMBER: 2,
+};
+
 function seatRu(seat: string): string {
   if (seat === "LEADER") return "глава";
   if (seat === "DEPUTY") return "зам";
   return "боец";
+}
+
+function cmpStr(a: string, b: string) {
+  return String(a || "").localeCompare(String(b || ""), "ru", {
+    sensitivity: "base",
+  });
+}
+
+function SortTh({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  onClick: () => void;
+}) {
+  return (
+    <th aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}>
+      <button
+        type="button"
+        className={`xfer-sort${active ? " is-on" : ""}`}
+        onClick={onClick}
+      >
+        {label}
+        {active ? (dir === "asc" ? " ↑" : " ↓") : ""}
+      </button>
+    </th>
+  );
 }
 
 function FactionLogo({
@@ -102,6 +143,14 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [nickFilter, setNickFilter] = useState("");
   const [factionFilter, setFactionFilter] = useState<string>("all");
+  const [playerSort, setPlayerSort] = useState<{
+    key: PlayerSortKey;
+    dir: SortDir;
+  }>({ key: "balance", dir: "desc" });
+  const [factionSort, setFactionSort] = useState<{
+    key: FactionSortKey;
+    dir: SortDir;
+  }>({ key: "balance", dir: "desc" });
 
   const [factionOpen, setFactionOpen] = useState<FactionRow | null>(null);
   const [factionDays, setFactionDays] = useState<FactionDay[]>([]);
@@ -153,7 +202,7 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
 
   const filteredPlayers = useMemo(() => {
     const q = nickFilter.trim().toLowerCase();
-    return players.filter((p) => {
+    const rows = players.filter((p) => {
       if (factionFilter !== "all" && p.factionId !== factionFilter) return false;
       if (!q) return true;
       return (
@@ -161,7 +210,51 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
         p.factionName.toLowerCase().includes(q)
       );
     });
-  }, [players, nickFilter, factionFilter]);
+    const dir = playerSort.dir === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      let c = 0;
+      if (playerSort.key === "nick") c = cmpStr(a.nick, b.nick);
+      else if (playerSort.key === "faction")
+        c = cmpStr(a.factionName, b.factionName) || cmpStr(a.nick, b.nick);
+      else if (playerSort.key === "seat")
+        c =
+          (SEAT_RANK[a.seat] ?? 9) - (SEAT_RANK[b.seat] ?? 9) ||
+          cmpStr(a.nick, b.nick);
+      else c = a.balance - b.balance || cmpStr(a.nick, b.nick);
+      return c * dir;
+    });
+  }, [players, nickFilter, factionFilter, playerSort]);
+
+  const sortedFactions = useMemo(() => {
+    const dir = factionSort.dir === "asc" ? 1 : -1;
+    return [...factions].sort((a, b) => {
+      let c = 0;
+      if (factionSort.key === "name") c = cmpStr(a.name, b.name);
+      else if (factionSort.key === "members")
+        c = a.members - b.members || cmpStr(a.name, b.name);
+      else c = a.balance - b.balance || cmpStr(a.name, b.name);
+      return c * dir;
+    });
+  }, [factions, factionSort]);
+
+  function togglePlayerSort(key: PlayerSortKey) {
+    setPlayerSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : {
+            key,
+            dir: key === "nick" || key === "faction" || key === "seat" ? "asc" : "desc",
+          },
+    );
+  }
+
+  function toggleFactionSort(key: FactionSortKey) {
+    setFactionSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "name" ? "asc" : "desc" },
+    );
+  }
 
   async function openFaction(f: FactionRow) {
     setFactionOpen(f);
@@ -268,31 +361,57 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
       {loading ? <p className="muted">Загрузка…</p> : null}
 
       {tab === "factions" && !loading ? (
-        <div className="faction-balances-faction-grid">
-          {factions.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              className="faction-balances-faction-card"
-              style={{ ["--fb-accent" as string]: f.color }}
-              onClick={() => void openFaction(f)}
-            >
-              <FactionLogo url={f.logoUrl} name={f.name} color={f.color} size={52} />
-              <div className="faction-balances-faction-meta">
-                <strong style={{ color: f.color }}>{f.name}</strong>
-                <span className="muted">{f.members} в составе</span>
-              </div>
-              <div className="faction-balances-faction-bal">
-                <span className="muted">Казна</span>
-                <strong>
-                  <BdAmount n={f.balance} />
-                </strong>
-              </div>
-            </button>
-          ))}
-          {!factions.length ? (
-            <p className="muted">Фракции не найдены.</p>
-          ) : null}
+        <div className="faction-balances-factions-block">
+          <div className="faction-balances-sort-row" role="group" aria-label="Сортировка фракций">
+            <span className="muted">Сортировка:</span>
+            {(
+              [
+                ["balance", "Казна"],
+                ["name", "Имя"],
+                ["members", "Состав"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`xfer-sort${factionSort.key === key ? " is-on" : ""}`}
+                onClick={() => toggleFactionSort(key)}
+              >
+                {label}
+                {factionSort.key === key
+                  ? factionSort.dir === "asc"
+                    ? " ↑"
+                    : " ↓"
+                  : ""}
+              </button>
+            ))}
+          </div>
+          <div className="faction-balances-faction-grid">
+            {sortedFactions.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                className="faction-balances-faction-card"
+                style={{ ["--fb-accent" as string]: f.color }}
+                onClick={() => void openFaction(f)}
+              >
+                <FactionLogo url={f.logoUrl} name={f.name} color={f.color} size={52} />
+                <div className="faction-balances-faction-meta">
+                  <strong style={{ color: f.color }}>{f.name}</strong>
+                  <span className="muted">{f.members} в составе</span>
+                </div>
+                <div className="faction-balances-faction-bal">
+                  <span className="muted">Казна</span>
+                  <strong>
+                    <BdAmount n={f.balance} />
+                  </strong>
+                </div>
+              </button>
+            ))}
+            {!sortedFactions.length ? (
+              <p className="muted">Фракции не найдены.</p>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -371,10 +490,30 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
             <table className="xfer-table faction-balances-table">
               <thead>
                 <tr>
-                  <th>Игрок</th>
-                  <th>Фракция</th>
-                  <th>Роль</th>
-                  <th>Личный B$</th>
+                  <SortTh
+                    label="Игрок"
+                    active={playerSort.key === "nick"}
+                    dir={playerSort.dir}
+                    onClick={() => togglePlayerSort("nick")}
+                  />
+                  <SortTh
+                    label="Фракция"
+                    active={playerSort.key === "faction"}
+                    dir={playerSort.dir}
+                    onClick={() => togglePlayerSort("faction")}
+                  />
+                  <SortTh
+                    label="Роль"
+                    active={playerSort.key === "seat"}
+                    dir={playerSort.dir}
+                    onClick={() => togglePlayerSort("seat")}
+                  />
+                  <SortTh
+                    label="Личный B$"
+                    active={playerSort.key === "balance"}
+                    dir={playerSort.dir}
+                    onClick={() => togglePlayerSort("balance")}
+                  />
                 </tr>
               </thead>
               <tbody>
