@@ -29471,7 +29471,9 @@ body:has(.faction-mgmt-denied-page) .site-footer {
 }
 .faction-mgmt-main-head h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 800;
   letter-spacing: 0.03em;
 }
 .faction-mgmt-main-body {
@@ -29480,6 +29482,23 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   overflow: auto;
   display: flex;
   flex-direction: column;
+}
+
+/*
+ * Читаемость панелей менеджмента (+~14%): таблицы/FAQ/балансы/трансферы.
+ * Скролл длиннее — ок. Навигационные плитки (кнопки 1–10) не трогаем.
+ */
+.faction-mgmt-pane-main {
+  zoom: 1.14;
+}
+.faction-mgmt-grid > .faction-mgmt-pane:first-child {
+  zoom: 1.12;
+}
+@supports not (zoom: 1) {
+  .faction-mgmt-pane-main,
+  .faction-mgmt-grid > .faction-mgmt-pane:first-child {
+    font-size: 114%;
+  }
 }
 
 /* Встраивание гонки / ставок / трансферов в окно 2 */
@@ -29492,10 +29511,67 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   width: 100%;
 }
 .faction-mgmt-main-body .xfer-title {
-  font-size: 1rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+  font-family: var(--font-display), Oxanium, sans-serif;
+}
+.faction-mgmt-main-body .xfer-sub,
+.faction-mgmt-main-body .xfer-hint,
+.faction-mgmt-main-body .muted {
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #cbd5e1;
 }
 .faction-mgmt-main-body .admin-tabs {
   flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.faction-mgmt-main-body .admin-tab {
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 0.55rem 0.95rem;
+}
+.faction-mgmt-main-body .xfer-table {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.faction-mgmt-main-body .xfer-table th {
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+.faction-mgmt-main-body .xfer-table th,
+.faction-mgmt-main-body .xfer-table td {
+  padding: 0.62rem 0.75rem;
+}
+.faction-mgmt-main-body .xfer-nick,
+.faction-mgmt-main-body .xfer-sort {
+  font-weight: 800;
+}
+.faction-mgmt-main-body .faction-faq-detail-body {
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.faction-mgmt-main-body .faction-faq-detail-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+.faction-mgmt-main-body .faction-faq-tile-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.faction-mgmt-main-body .faction-faq-tile-blurb {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+.faction-mgmt-main-body .faction-balances-chip {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.faction-mgmt-main-body .btn {
+  font-weight: 700;
 }
 
 .faction-mgmt-denied-page {
