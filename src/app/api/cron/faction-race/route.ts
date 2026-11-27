@@ -33,7 +33,14 @@ export async function POST(req: NextRequest) {
   }
   try {
     const report = await tickFactionRace();
-    return NextResponse.json(report);
+    let auctionSettled = 0;
+    try {
+      const { settleDueAuctions } = await import("@/lib/factionAuction");
+      auctionSettled = await settleDueAuctions();
+    } catch (ae) {
+      console.error("auction settle cron", ae);
+    }
+    return NextResponse.json({ ...report, auctionSettled });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: String((e as Error)?.message || e) },

@@ -19,6 +19,12 @@ import {
 export const SRI_SENDER_KIND = "sri";
 export const SRI_SENDER_LABEL = "СРИ";
 
+/**
+ * СРИ на паузе: новичков после набора забирает Аукцион (16ч).
+ * reserve_exit / race_force / balance — пока не раздаём автоматически.
+ */
+export const SRI_PAUSED = true;
+
 /** Пехотные фракции для автобаланса. Легион — вне пула. */
 export const SRI_FACTION_NAMES = ["Орда", "Улей", "Сброд", "Стая", "Табор"] as const;
 
@@ -421,6 +427,33 @@ export async function assignFreeAgent(opts: {
       skipped: "already_in_faction",
       faction: user.factionMembership.faction.name,
     };
+  }
+
+  // Пауза СРИ: рекрут → аукцион; остальное не раздаём.
+  if (SRI_PAUSED) {
+    if (opts.reason === "recruit") {
+      const { openRecruitAuction } = await import("@/lib/factionAuction");
+      const auc = await openRecruitAuction({ userId: user.id, reason: "recruit" });
+      if (auc.ok) {
+        return {
+          ok: true,
+          userId: user.id,
+          nick: auc.nick,
+          faction: "Аукцион",
+          factionId: auc.lotId,
+          reason: opts.reason,
+          mailId: auc.mailId,
+        };
+      }
+      return {
+        ok: false,
+        skipped: auc.skipped,
+        userId: user.id,
+        nick: auc.nick,
+        reason: opts.reason,
+      };
+    }
+    return { ok: false, skipped: "sri_paused", reason: opts.reason };
   }
 
   const nick = personLabel(user);

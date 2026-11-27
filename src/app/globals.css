@@ -29289,6 +29289,53 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   overflow: auto;
   min-height: 0;
 }
+
+/* Аукцион (кнопка 7) */
+.faction-auction {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+}
+.faction-auction-meta {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+}
+.faction-auction-lots {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.faction-auction-lot {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(7, 9, 16, 0.55);
+}
+.faction-auction-lot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.faction-auction-bidlist {
+  margin: 6px 0 10px;
+  padding-left: 1.1rem;
+  color: #cbd5e1;
+  font-size: 0.88rem;
+}
+.faction-auction-bidform {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.faction-auction-bidform .xfer-nick-filter-input {
+  max-width: 10rem;
+}
 .faction-mgmt-denied-modal {
   max-width: 440px;
 }

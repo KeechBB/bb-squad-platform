@@ -138,6 +138,8 @@ model User {
   factionContractsSigned     FactionPlayerContract[] @relation("ContractSigner")
   factionSalarySettings      FactionPlayerSalary[]
   factionSalaryPayouts       FactionSalaryPayout[]
+  auctionLots                FactionAuctionLot[] @relation("AuctionPlayer")
+  auctionBidsPlaced          FactionAuctionBid[] @relation("AuctionBidder")
   bbCoinTxs                  BbCoinTx[]
   bbCoinOrders               BbCoinOrder[]
   nickPatchStocks            NickPatchStock[]
@@ -637,6 +639,7 @@ model Faction {
   playerContracts FactionPlayerContract[]
   playerSalaries  FactionPlayerSalary[]
   salaryPayouts   FactionSalaryPayout[]
+  auctionBids     FactionAuctionBid[]
 
   @@index([clanId])
 }
@@ -978,6 +981,55 @@ model FactionSalaryPayout {
   @@index([factionId, createdAt])
   @@index([userId, createdAt])
   @@index([windowId])
+}
+
+/// Банк Аукциона (выигрышные ставки за рекрутов).
+model AuctionBank {
+  id               String   @id @default("global")
+  blueberryBalance Int      @default(0)
+  updatedAt        DateTime @updatedAt
+}
+
+/// Лот аукциона на новичка (16ч после приёма).
+model FactionAuctionLot {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation("AuctionPlayer", fields: [userId], references: [id], onDelete: Cascade)
+  /// OPEN | SETTLED | CANCELLED | EXPIRED
+  status          String   @default("OPEN")
+  startsAt        DateTime @default(now())
+  endsAt          DateTime
+  winnerFactionId String?
+  winningBidBd    Int?
+  /// 10% победившей ставки → личный B$ рекрута
+  recruitCutBd    Int?
+  note            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bids FactionAuctionBid[]
+
+  @@index([status, endsAt])
+  @@index([userId, status])
+}
+
+model FactionAuctionBid {
+  id             String   @id @default(cuid())
+  lotId          String
+  lot            FactionAuctionLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  factionId      String
+  faction        Faction  @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  amountBd       Int
+  /// ACTIVE | WON | REFUNDED
+  status         String   @default("ACTIVE")
+  placedByUserId String
+  placedBy       User     @relation("AuctionBidder", fields: [placedByUserId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([lotId, factionId])
+  @@index([lotId, status])
+  @@index([factionId])
 }
 
 /// Игроки соперника со скринов/логов КВ до регистрации на площадке.
