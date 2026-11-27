@@ -29272,24 +29272,24 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   text-transform: uppercase;
 }
 .faction-mgmt-roster-num {
-  width: 2rem;
+  width: 7%;
   color: #7dd3fc;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
 }
 .faction-mgmt-roster-nick {
-  width: auto;
+  width: 40%;
   font-weight: 800;
   color: #f8fafc;
   word-break: normal;
 }
 .faction-mgmt-roster-role {
-  width: 4.1rem;
+  width: 22%;
   color: #e2e8f0;
   font-weight: 700;
 }
 .faction-mgmt-roster-date {
-  width: 4.6rem;
+  width: 31%;
   color: #cbd5e1;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
