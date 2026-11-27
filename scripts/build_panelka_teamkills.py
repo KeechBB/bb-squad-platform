@@ -60,9 +60,10 @@ TEAM_MARK_RE = re.compile(
 )
 STAMP_RE = re.compile(r"\[(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2})")
 STRIP_TAG = re.compile(r"^[\[【〔][^\]】〕]*[\]】〕]\s*")
-# Layer / map (Narva_RAAS_v1 → Narva) — только явные пути карты.
-LAYER_RE = re.compile(
-    r"(?:Browse:\s*)?/Game/Maps/[^/\s]+/(?P<layer>[A-Za-z0-9_]+)",
+# /Game/Maps/Narva/Gameplay_Layers/Narva_RAAS_v1 → Narva
+MAP_FOLDER_RE = re.compile(r"/Game/Maps/(?P<map>[A-Za-z0-9_]+)/", re.I)
+MAP_LAYER_RE = re.compile(
+    r"/Game/Maps/[^/]+/Gameplay_Layers/(?P<layer>[A-Za-z0-9_]+)",
     re.I,
 )
 
@@ -190,11 +191,16 @@ def parse_file(
             # Keep identity maps even before --since (needed for early-Nov dies).
             # Only skip Die/Wound attribution when ymd < since.
 
-            lm = LAYER_RE.search(line)
+            lm = MAP_LAYER_RE.search(line)
             if lm:
                 layer = lm.group("layer") or ""
-                # Narva_RAAS_v1 → Narva
                 current_map = layer.split("_")[0] if layer else current_map
+            else:
+                fm = MAP_FOLDER_RE.search(line)
+                if fm:
+                    folder = fm.group("map") or ""
+                    if folder and folder.lower() not in ("maps", "game"):
+                        current_map = folder
 
             pl = POSTLOGIN_RE.search(line)
             if pl:
