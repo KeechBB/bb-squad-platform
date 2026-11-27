@@ -474,12 +474,12 @@ EOF
 chmod 644 /etc/cron.d/bb-panelka-pb1-stats-warm
 touch /var/log/bb-panelka-pb1-stats-warm.log
 chmod 644 /var/log/bb-panelka-pb1-stats-warm.log
-# Kick off first warm batches in background (do not block deploy)
+# One warm batch in background (do not block deploy). Old 6× loop piled up
+# with overlapping deploys and ate CPU while Next was already hot.
 (
-  for _i in 1 2 3 4 5 6; do
-    bash "$ROOT/scripts/warm_panelka_pb1_stats_cron.sh" || true
-    sleep 8
-  done
+  flock -n /tmp/bb-panelka-pb1-stats-warm.lock \
+    ionice -c3 nice -n 15 bash "$ROOT/scripts/warm_panelka_pb1_stats_cron.sh" \
+    || echo "pb1 stats warm boot skipped (lock busy or warm failed)"
 ) >/tmp/bb-panelka-pb1-stats-warm-boot.log 2>&1 &
 
 echo "==> panelka teamkills cache cron (every 15 min, since 2026-11-01)"
@@ -493,12 +493,14 @@ EOF
 chmod 644 /etc/cron.d/bb-panelka-teamkills
 touch /var/log/bb-panelka-teamkills.log
 chmod 644 /var/log/bb-panelka-teamkills.log
-# First full backfill in background (Nov+) — do not block deploy
+# Boot warm: ONLY incremental + flock. Full --since without flock used to
+# stack 3×100% CPU across overlapping deploys and starve Next (site hang /
+# Ctrl+F5). Cron every 15m already covers freshness.
 (
-  env BB_PLATFORM_ROOT="$ROOT" "$ROOT/scripts/.venv-collector/bin/python" \
-    "$ROOT/scripts/build_panelka_teamkills.py" --since 2026-11-01 \
-    || python3 "$ROOT/scripts/build_panelka_teamkills.py" --since 2026-11-01 \
-    || true
+  flock -n /tmp/bb-panelka-teamkills.lock \
+    ionice -c3 nice -n 15 env BB_PLATFORM_ROOT="$ROOT" \
+    bash "$ROOT/scripts/warm_panelka_teamkills_cron.sh" \
+    || echo "teamkills boot skipped (lock busy or warm failed)"
 ) >/tmp/bb-panelka-teamkills-boot.log 2>&1 &
 
 echo "==> PB1/TR game-state load alert (every minute, same ops chat)"

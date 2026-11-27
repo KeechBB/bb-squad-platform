@@ -67,8 +67,13 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
   const loadFactions = useCallback(async () => {
     setFactionLoading(true);
     setFactionError("");
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), 12_000);
     try {
-      const res = await fetch("/api/factions", { cache: "no-store" });
+      const res = await fetch("/api/factions", {
+        cache: "no-store",
+        signal: ctrl.signal,
+      });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         factions?: FactionMenuItem[];
@@ -79,10 +84,13 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
         return;
       }
       setFactionRows(Array.isArray(data.factions) ? data.factions : []);
-    } catch {
-      setFactionError("Сеть недоступна");
+    } catch (err) {
+      const aborted =
+        (err as { name?: string } | null)?.name === "AbortError";
+      setFactionError(aborted ? "Долго нет ответа — обнови страницу" : "Сеть недоступна");
       setFactionRows([]);
     } finally {
+      window.clearTimeout(timer);
       setFactionLoading(false);
     }
   }, []);
