@@ -12,6 +12,16 @@ import {
 import { FactionTransfers } from "@/components/FactionTransfers";
 import { BdAmount } from "@/components/BdMark";
 
+function formatJoinedAt(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 type MgmtPanel = "race" | "nightbets" | "transfers" | null;
 
 type NavBtn = {
@@ -166,32 +176,70 @@ export function FactionManagementClient({
                   <img
                     src={view.logoUrl}
                     alt=""
-                    width={88}
-                    height={88}
+                    width={56}
+                    height={56}
                     className="faction-logo"
                   />
                 ) : (
                   <div className="faction-logo faction-logo-empty">лого</div>
                 )}
-                <h1>{view.name}</h1>
-                <p>
-                  Глава: <strong>{view.leaderNick || "не назначен"}</strong>
-                </p>
-                <p>
-                  Зам:{" "}
-                  {view.deputyNicks.length
-                    ? view.deputyNicks.join(", ")
-                    : "не назначен"}
-                </p>
-                <p>
-                  Состав: <strong>{view.members.length}</strong>
-                </p>
-                <p>
-                  Казна:{" "}
-                  <strong>
-                    <BdAmount n={view.blueberryBalance} />
-                  </strong>
-                </p>
+                <div className="faction-mgmt-side-brand-text">
+                  <h1>{view.name}</h1>
+                  <p className="muted">
+                    Глава: <strong>{view.leaderNick || "не назначен"}</strong>
+                    {" · "}
+                    Зам:{" "}
+                    <strong>
+                      {view.deputyNicks.length
+                        ? view.deputyNicks.join(", ")
+                        : "не назначен"}
+                    </strong>
+                  </p>
+                  <p className="muted">
+                    Состав: <strong>{view.members.length}</strong>
+                    {" · "}
+                    Казна:{" "}
+                    <strong>
+                      <BdAmount n={view.blueberryBalance} />
+                    </strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="faction-mgmt-roster-head">
+                <h2>Состав</h2>
+                <span className="muted">{view.members.length}</span>
+              </div>
+              <div className="faction-mgmt-roster-wrap">
+                <table className="faction-mgmt-roster-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Игрок</th>
+                      <th>Роль</th>
+                      <th>Вступил</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {view.members.map((m, i) => (
+                      <tr key={m.id}>
+                        <td className="faction-mgmt-roster-num">{m.order || i + 1}</td>
+                        <td className="faction-mgmt-roster-nick">{m.nick}</td>
+                        <td className="faction-mgmt-roster-role">{m.roleName}</td>
+                        <td className="faction-mgmt-roster-date">
+                          {formatJoinedAt(m.joinedAt)}
+                        </td>
+                      </tr>
+                    ))}
+                    {!view.members.length ? (
+                      <tr>
+                        <td colSpan={4} className="muted">
+                          Пока никого нет.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
               </div>
             </aside>
 
