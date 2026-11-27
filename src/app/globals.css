@@ -28835,3 +28835,298 @@ body:has(.faction-page) .site-footer {
   .pb1a-bar-label { font-size: 0.5rem; }
   .pb1a-cal { max-width: none; }
 }
+
+/* ——— Фракции · Менеджмент (вкладка + отдельная страница) ——— */
+.clan-tabs .admin-tab.faction-mgmt-tab {
+  position: relative;
+  border: 1px solid rgba(56, 189, 248, 0.78);
+  color: #e0f2fe;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(14, 165, 233, 0.45);
+  background:
+    linear-gradient(
+      120deg,
+      rgba(12, 74, 110, 0.82) 0%,
+      rgba(3, 105, 161, 0.62) 28%,
+      rgba(56, 189, 248, 0.42) 50%,
+      rgba(3, 105, 161, 0.62) 72%,
+      rgba(12, 74, 110, 0.82) 100%
+    );
+  background-size: 220% 100%;
+  box-shadow:
+    0 0 14px rgba(14, 165, 233, 0.42),
+    0 0 28px rgba(2, 132, 199, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  isolation: isolate;
+  animation: nav-public-glow-flow 5.5s linear infinite;
+}
+.clan-tabs .admin-tab.faction-mgmt-tab:hover,
+.clan-tabs .admin-tab.faction-mgmt-tab:focus-visible {
+  color: #fff;
+  border-color: rgba(186, 230, 253, 0.95);
+  box-shadow:
+    0 0 18px rgba(56, 189, 248, 0.55),
+    0 0 36px rgba(14, 165, 233, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+@media (prefers-reduced-motion: reduce) {
+  .clan-tabs .admin-tab.faction-mgmt-tab {
+    animation: none;
+  }
+}
+
+body:has(.faction-mgmt-page),
+body:has(.faction-mgmt-denied-page) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+body:has(.faction-mgmt-page) .site-footer,
+body:has(.faction-mgmt-denied-page) .site-footer {
+  display: none;
+}
+.shell:has(.faction-mgmt-page),
+.shell:has(.faction-mgmt-denied-page) {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.faction-mgmt-page {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: transparent;
+}
+
+.canvas-scale-host.is-faction-mgmt {
+  background: transparent;
+}
+.canvas-scale-host.is-faction-mgmt .canvas-scale-inner.is-full {
+  width: 90%;
+  max-width: 90%;
+  height: 90%;
+  max-height: 90%;
+  margin: auto;
+  padding: 14px 16px;
+  box-sizing: border-box;
+}
+
+.faction-mgmt-shell {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background:
+    linear-gradient(180deg, rgba(8, 10, 18, 0.88) 0%, rgba(8, 10, 18, 0.78) 100%);
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(6px);
+}
+
+.faction-mgmt-top {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.faction-mgmt-back {
+  text-decoration: none;
+}
+.faction-mgmt-top-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.faction-mgmt-top-title strong {
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.faction-mgmt-top-meta {
+  margin-left: auto;
+}
+
+.faction-mgmt-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(200px, 0.85fr) minmax(210px, 0.7fr) minmax(0, 2.35fr);
+  gap: 12px;
+}
+
+.faction-mgmt-pane {
+  min-width: 0;
+  min-height: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(7, 9, 16, 0.72);
+  padding: 14px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.faction-mgmt-side-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.faction-mgmt-side-brand h1 {
+  margin: 4px 0 0;
+  font-size: 1.35rem;
+}
+.faction-mgmt-side-brand p {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 0.92rem;
+}
+
+.faction-mgmt-nav {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.faction-mgmt-nav-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: minmax(52px, 1fr);
+  gap: 8px;
+}
+.faction-mgmt-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.faction-mgmt-nav-btn:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.65);
+  background: rgba(12, 74, 110, 0.35);
+}
+.faction-mgmt-nav-btn.is-active {
+  border-color: rgba(56, 189, 248, 0.9);
+  background: rgba(3, 105, 161, 0.42);
+  box-shadow: 0 0 16px rgba(14, 165, 233, 0.28);
+}
+.faction-mgmt-nav-btn.is-soon,
+.faction-mgmt-nav-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.faction-mgmt-nav-num {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #7dd3fc;
+  text-transform: uppercase;
+}
+.faction-mgmt-nav-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.faction-mgmt-main-head {
+  flex: 0 0 auto;
+  margin-bottom: 10px;
+}
+.faction-mgmt-main-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0.03em;
+}
+.faction-mgmt-main-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Встраивание гонки / ставок / трансферов в окно 2 */
+.faction-mgmt-main-body > .faction-race,
+.faction-mgmt-main-body > .faction-night-bets,
+.faction-mgmt-main-body > .xfer-panel,
+.faction-mgmt-main-body > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+.faction-mgmt-main-body .xfer-title {
+  font-size: 1rem;
+}
+.faction-mgmt-main-body .admin-tabs {
+  flex-wrap: wrap;
+}
+
+.faction-mgmt-denied-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.faction-mgmt-denied-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.faction-mgmt-denied-modal {
+  max-width: 440px;
+}
+
+@media (max-width: 1100px) {
+  .faction-mgmt-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto minmax(280px, 1fr);
+  }
+  .faction-mgmt-nav-grid {
+    grid-auto-rows: minmax(48px, auto);
+  }
+  .canvas-scale-host.is-faction-mgmt .canvas-scale-inner.is-full {
+    width: 96%;
+    max-width: 96%;
+    height: 96%;
+    max-height: 96%;
+  }
+}
