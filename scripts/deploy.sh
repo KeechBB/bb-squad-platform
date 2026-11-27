@@ -501,6 +501,17 @@ chmod 644 /var/log/bb-panelka-teamkills.log
     || true
 ) >/tmp/bb-panelka-teamkills-boot.log 2>&1 &
 
+echo "==> PB1/TR game-state load alert (every minute, same ops chat)"
+chmod +x "$ROOT/scripts/watch_gamestate_bunch.py" || true
+cat >/etc/cron.d/bb-gamestate-bunch <<EOF
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+* * * * * root flock -n /tmp/bb-gamestate-bunch.lock python3 $ROOT/scripts/watch_gamestate_bunch.py >>/var/log/bb-gamestate-bunch.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-gamestate-bunch
+touch /var/log/bb-gamestate-bunch.log
+chmod 644 /var/log/bb-gamestate-bunch.log
+
 echo "==> nginx security headers (F-01…F-05)"
 chmod +x "$ROOT/scripts/apply_nginx_security_headers.sh" || true
 bash "$ROOT/scripts/apply_nginx_security_headers.sh" || echo "WARN: security headers apply skipped"
