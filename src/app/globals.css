@@ -29608,9 +29608,22 @@ body:has(.faction-mgmt-denied-page) .site-footer {
 .faction-hr-head {
   flex: 0 0 auto;
 }
+/* Две таблицы в вкладке не должны схлопывать друг друга — скроллим тело вкладки. */
+.faction-hr .xfer-tab-body {
+  overflow: auto;
+}
+.faction-hr .xfer-tab-body > * {
+  flex-shrink: 0;
+}
+.faction-hr .xfer-tab-body > .xfer-table-wrap {
+  flex: 0 0 auto;
+  min-height: 8rem;
+  max-height: none;
+}
 .faction-hr-sub {
   margin: 14px 0 8px;
   font-size: 0.92rem;
+  flex: 0 0 auto;
 }
 .faction-hr-hint {
   margin: 0 0 10px;
