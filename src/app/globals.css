@@ -29225,8 +29225,10 @@ body:has(.faction-mgmt-denied-page) .site-footer {
 }
 .faction-mgmt-roster-head h2 {
   margin: 0;
-  font-size: 0.92rem;
-  letter-spacing: 0.04em;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .faction-mgmt-roster-wrap {
@@ -29237,43 +29239,47 @@ body:has(.faction-mgmt-denied-page) .site-footer {
 .faction-mgmt-roster-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.82rem;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 1.02rem;
+  font-weight: 600;
 }
 .faction-mgmt-roster-table th,
 .faction-mgmt-roster-table td {
-  padding: 6px 8px;
+  padding: 8px 10px;
   text-align: left;
   border-bottom: 1px solid rgba(51, 65, 85, 0.55);
-  vertical-align: top;
+  vertical-align: middle;
 }
 .faction-mgmt-roster-table th {
   position: sticky;
   top: 0;
   z-index: 1;
   background: rgba(7, 9, 16, 0.96);
-  color: #94a3b8;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  color: #cbd5e1;
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .faction-mgmt-roster-num {
-  width: 2.2rem;
+  width: 2.4rem;
   color: #7dd3fc;
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
+  font-weight: 800;
 }
 .faction-mgmt-roster-nick {
-  font-weight: 700;
-  color: #f1f5f9;
+  font-weight: 800;
+  color: #f8fafc;
   word-break: break-word;
 }
 .faction-mgmt-roster-role {
-  color: #cbd5e1;
+  color: #e2e8f0;
+  font-weight: 650;
   white-space: nowrap;
 }
 .faction-mgmt-roster-date {
-  color: #94a3b8;
+  color: #cbd5e1;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
