@@ -15,6 +15,8 @@ export type PanelkaTeamkillRow = {
   victim: string;
   victimSteamId?: string;
   server?: string;
+  weapon?: string;
+  map?: string;
   ymd?: string;
 };
 
@@ -95,5 +97,7 @@ export function panelkaTeamkillsForCard(
     victim: r.victim,
     victimSteamId: r.victimSteamId,
     server: r.server,
+    weapon: r.weapon || "",
+    map: r.map || "",
   }));
 }

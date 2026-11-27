@@ -1406,6 +1406,65 @@ body:has(.panelka-page) .shell {
   font-size: 0.86rem;
 }
 
+.panelka-tk-table-wrap {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 10px;
+}
+.panelka-tk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.panelka-tk-table th,
+.panelka-tk-table td {
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  vertical-align: middle;
+}
+.panelka-tk-table th {
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(7, 9, 16, 0.55);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.panelka-tk-table tr:last-child td {
+  border-bottom: 0;
+}
+.panelka-tk-when {
+  color: #f1f5f9;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.panelka-tk-where {
+  color: rgba(148, 163, 184, 0.85);
+  font-size: 0.78rem;
+}
+.panelka-tk-victim {
+  display: inline-block;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  color: #f8fafc;
+  font-weight: 700;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panelka-tk-weapon {
+  color: rgba(226, 232, 240, 0.92);
+  font-weight: 600;
+}
+
 .panelka-mod-actions {
   display: flex;
   flex-wrap: wrap;

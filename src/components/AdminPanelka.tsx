@@ -5,6 +5,8 @@ import type { PanelkaServer } from "@/lib/panelkaRcon";
 
 const MODES = ["SQ", "FCL", "CSL", "SEC", "HOTDROP", "LOADER"] as const;
 const PAGE = 10;
+/** Тимкилы в карточке — по 5 строк, как в админ-отчёте. */
+const TK_PAGE = 5;
 const BAN_UNITS = [
   { value: "h", label: "часы" },
   { value: "d", label: "дни" },
@@ -147,6 +149,8 @@ type TeamKillRow = {
   victim: string;
   victimSteamId?: string;
   server?: string;
+  weapon?: string;
+  map?: string;
 };
 
 type PunishmentRow = {
@@ -1706,15 +1710,15 @@ export function PlayerModModal({
   }, [banUnit, banAmount]);
 
   const chatPages = Math.max(1, Math.ceil(chat.length / PAGE));
-  const tkPages = Math.max(1, Math.ceil(teamkills.length / PAGE));
+  const tkPages = Math.max(1, Math.ceil(teamkills.length / TK_PAGE));
   const punishPages = Math.max(1, Math.ceil(punishments.length / PAGE));
   const chatSlice = useMemo(() => {
     const start = chatPage * PAGE;
     return chat.slice(start, start + PAGE);
   }, [chat, chatPage]);
   const tkSlice = useMemo(() => {
-    const start = tkPage * PAGE;
-    return teamkills.slice(start, start + PAGE);
+    const start = tkPage * TK_PAGE;
+    return teamkills.slice(start, start + TK_PAGE);
   }, [teamkills, tkPage]);
   const punishSlice = useMemo(() => {
     const start = punishPage * PAGE;
@@ -2412,23 +2416,56 @@ export function PlayerModModal({
         ) : null}
 
         {tab === "tk" ? (
-          <div className="panelka-mod-punish">
+          <div className="panelka-mod-punish panelka-mod-tk">
             <header>
-              <h4>Тимкилы этого игрока · с 01.11</h4>
+              <h4>
+                Тимкилы этого игрока · с 01.11
+                {teamkills.length ? ` · ${teamkills.length}` : ""}
+              </h4>
               <Pager page={tkPage} pages={tkPages} onChange={setTkPage} />
             </header>
             {tkSlice.length ? (
-              <ul>
-                {tkSlice.map((row, index) => (
-                  <li key={`t-${tkPage}-${index}`}>
-                    <span>
-                      {[row.date, row.clock].filter(Boolean).join(" ") || "—"}
-                      {row.server ? ` · ${row.server}` : ""}
-                    </span>
-                    <b>убил своего: {row.victim}</b>
-                  </li>
-                ))}
-              </ul>
+              <div className="panelka-tk-table-wrap">
+                <table className="panelka-tk-table">
+                  <thead>
+                    <tr>
+                      <th>Время</th>
+                      <th>Кого</th>
+                      <th>Оружие</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tkSlice.map((row, index) => {
+                      const when =
+                        [row.date, row.clock].filter(Boolean).join(" ") || "—";
+                      const where = [row.server, row.map]
+                        .filter(Boolean)
+                        .join(", ");
+                      return (
+                        <tr key={`t-${tkPage}-${index}`}>
+                          <td>
+                            <span className="panelka-tk-when">{when}</span>
+                            {where ? (
+                              <span className="panelka-tk-where">
+                                {" "}
+                                ({where})
+                              </span>
+                            ) : null}
+                          </td>
+                          <td>
+                            <span className="panelka-tk-victim">
+                              {row.victim || "—"}
+                            </span>
+                          </td>
+                          <td className="panelka-tk-weapon">
+                            {row.weapon || "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <p className="panelka-chat-empty">
                 {loading || historyLoading

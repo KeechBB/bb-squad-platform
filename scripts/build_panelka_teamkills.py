@@ -42,12 +42,13 @@ POSSESS_ALT = re.compile(
     r"steam:\s*(?P<steam>7656\d+)\).*?(?P<nick>[^\]]+?)\s+has possessed \((?P<pawn>BP_[^\)]+)\)",
     re.I,
 )
-# Die: victim nick + killer controller; Online IDs steam = victim
-DIE_RE = re.compile(
-    r"Die\(\):\s*Player:(?P<victim>.+?)\s+KillingDamage=[-\d.]+\s+from\s+(?P<causer>\S+)\s+"
-    r"\(Online IDs:.*?steam:\s*(?P<vsteam>7656\d+)",
+# Die/Wound: Online IDs steam = KILLER (not victim).
+DIE_OR_WOUND_RE = re.compile(
+    r"(?:Die|Wound)\(\):\s*Player:(?P<victim>.+?)\s+KillingDamage=[-\d.]+\s+from\s+(?P<causer>\S+)\s+"
+    r"\(Online IDs:.*?steam:\s*(?P<ksteam>7656\d+)",
     re.I,
 )
+CAUSED_BY_RE = re.compile(r"caused by\s+(?P<wep>\S+)", re.I)
 SQUAD_RE = re.compile(
     r"LogSquad:\s*(?P<nick>.+?)\s*\(Online IDs:\s*EOS:\s*[0-9a-fA-F]+\s+steam:\s*(?P<steam>7656\d+)\)\s+"
     r"has created Squad\s+\d+\s+\(Squad Name:.*?\)\s+on\s+(?P<faction>.+)$",
@@ -59,6 +60,32 @@ TEAM_MARK_RE = re.compile(
 )
 STAMP_RE = re.compile(r"\[(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2})")
 STRIP_TAG = re.compile(r"^[\[【〔][^\]】〕]*[\]】〕]\s*")
+# Layer / map for row context (Narva_RAAS_v1 → Narva)
+LAYER_RE = re.compile(
+    r"(?:LogSquad.*?Layer[:\s]+|Browse:\s*/Game/Maps/[^/\s]+/)(?P<layer>[A-Za-z0-9_]+)",
+    re.I,
+)
+
+
+def weapon_label(raw: str) -> str:
+    """BP_35MM_Proj_QLZ87_HEDP_C_123 → readable weapon."""
+    w = re.sub(r"^BP_", "", (raw or "").strip())
+    w = re.sub(r"_C_\d+$", "", w)
+    w = re.sub(r"_C$", "", w)
+    if not w:
+        return ""
+    wl = w.lower()
+    if "qlz87" in wl and "hedp" in wl:
+        return "QLZ-87 HEDP (35 мм)"
+    if "qlz87" in wl:
+        return "QLZ-87"
+    if "qbz191" in wl:
+        return "QBZ-191"
+    if w.startswith("Soldier_"):
+        return w.replace("Soldier_", "кит ")
+    if "Proj_" in w:
+        return w.replace("Proj_", "").replace("_", " ")
+    return w.replace("_", " ")
 
 
 def pad2(n: int) -> str:
@@ -140,6 +167,8 @@ def parse_file(
     steam_team: dict[str, str] = {}
     steam_nick: dict[str, str] = {}
     nick_steam: dict[str, str] = {}  # clean_nick lower → steam
+    steam_last_wep: dict[str, str] = {}  # last non-soldier possess / proj
+    current_map = ""
     added = 0
 
     def remember_nick(steam: str, nick: str) -> None:
@@ -159,7 +188,13 @@ def parse_file(
         for line in fh:
             ymd, clock, disp = msk_stamp(line)
             # Keep identity maps even before --since (needed for early-Nov dies).
-            # Only skip Die attribution when ymd < since.
+            # Only skip Die/Wound attribution when ymd < since.
+
+            lm = LAYER_RE.search(line)
+            if lm:
+                layer = lm.group("layer") or ""
+                # Narva_RAAS_v1 → Narva
+                current_map = layer.split("_")[0] if layer else current_map
 
             pl = POSTLOGIN_RE.search(line)
             if pl:
@@ -176,6 +211,9 @@ def parse_file(
                 mfac = re.search(r"BP_Soldier_([A-Za-z0-9]+)_", pawn)
                 if mfac:
                     steam_faction[steam] = mfac.group(1).upper()
+                label = weapon_label(pawn)
+                if label and "кит " not in label:
+                    steam_last_wep[steam] = label
 
             sm = SQUAD_RE.search(line)
             if sm:
@@ -189,16 +227,15 @@ def parse_file(
                 steam_team[steam] = tm.group("team")
                 remember_nick(steam, tm.group("nick"))
 
-            dm = DIE_RE.search(line)
+            dm = DIE_OR_WOUND_RE.search(line)
             if not dm:
                 continue
             if ymd and ymd < since:
                 continue
 
-            # Squad Die Online IDs steam = KILLER (same as controller owner),
-            # not victim — see rp_log_parse._resolve_combat_row.
+            # Squad Die/Wound Online IDs steam = KILLER.
             causer = dm.group("causer").rstrip(",;")
-            killer_steam = dm.group("vsteam")  # misnamed group: killer steam
+            killer_steam = dm.group("ksteam")
             if causer.lower() in ("nullptr", "none", "null"):
                 continue
             ctrl_steam = ctrl_owner.get(causer) or pawn_owner.get(causer)
@@ -239,6 +276,12 @@ def parse_file(
                 victim_name = steam_nick.get(victim_steam, victim_steam)
             if not ymd:
                 ymd, clock, disp = msk_stamp(line)
+
+            caused = CAUSED_BY_RE.search(line)
+            wep = weapon_label(caused.group("wep")) if caused else ""
+            if not wep or wep.startswith("кит "):
+                wep = steam_last_wep.get(killer_steam) or wep or "—"
+
             row = {
                 "date": disp or ymd,
                 "ymd": ymd,
@@ -246,6 +289,8 @@ def parse_file(
                 "victim": victim_name,
                 "victimSteamId": victim_steam,
                 "server": server,
+                "weapon": wep,
+                "map": current_map or "",
             }
             by_steam[killer_steam].append(row)
             added += 1
@@ -289,7 +334,10 @@ def write_caches(
             key=lambda x: (x.get("ymd") or "", x.get("clock") or ""),
             reverse=True,
         ):
-            key = f"{r.get('ymd')}|{r.get('clock')}|{r.get('victimSteamId')}|{r.get('server')}"
+            key = (
+                f"{r.get('ymd')}|{r.get('clock')}|{r.get('victimSteamId')}|"
+                f"{r.get('server')}|{r.get('weapon') or ''}"
+            )
             if key in seen:
                 continue
             seen.add(key)
@@ -299,7 +347,10 @@ def write_caches(
             try:
                 old = json.loads(path.read_text(encoding="utf-8"))
                 for r in old.get("rows") or []:
-                    key = f"{r.get('ymd')}|{r.get('clock')}|{r.get('victimSteamId')}|{r.get('server')}"
+                    key = (
+                        f"{r.get('ymd')}|{r.get('clock')}|{r.get('victimSteamId')}|"
+                        f"{r.get('server')}|{r.get('weapon') or ''}"
+                    )
                     if key in seen:
                         continue
                     if (r.get("ymd") or "") < since:
