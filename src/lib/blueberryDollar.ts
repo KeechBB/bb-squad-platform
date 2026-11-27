@@ -99,17 +99,17 @@ export function estimatePlayerPrice(stats: Partial<PlayerPriceStats> & {
   return ESTIMATE_BASE + grind;
 }
 
-/** Тарифы гринда → казна фракции. Линейно, без потолка за катку. */
-export const GRIND_RATE_KILL = 85;
-export const GRIND_RATE_RES = 110;
+/** Тарифы гринда → казна фракции. Линейно, без потолка за катку. (×2 с 27.11.2026) */
+export const GRIND_RATE_KILL = 170;
+export const GRIND_RATE_RES = 220;
 /** B$ за единицу урона из статы матча (в т.ч. по технике). */
-export const GRIND_RATE_DMG = 0.12;
-export const GRIND_RATE_VEHICLE_KILL = 450;
+export const GRIND_RATE_DMG = 0.24;
+export const GRIND_RATE_VEHICLE_KILL = 900;
 /**
  * Бонус за кит «Командир отряда» на TRAIN: >70% длительности матча на SL.
  * Доля от длины катки (не от личного онлайна) — анти-абуз коротким заходом.
  */
-export const GRIND_RATE_SL = 1000;
+export const GRIND_RATE_SL = 2000;
 export const GRIND_SL_MIN_FRAC = 0.7;
 
 /**
@@ -164,7 +164,7 @@ export function isGrindEligibleMatch(opts: {
 }
 
 /**
- * +1000 B$ если время на ките «Командир отряда» > 70% длины матча.
+ * +GRIND_RATE_SL B$ если время на ките «Командир отряда» > 70% длины матча.
  * `matchDurationSec` — длительность катки; `slKitSec` — секунды на SL в окне матча.
  */
 export function grindSlBonusFromKitTime(opts: {
