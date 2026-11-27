@@ -41,7 +41,7 @@ export async function expireDueContracts(now = new Date()) {
   });
 }
 
-/** Активный контракт блокирует выход игрока за свои B$. */
+/** Активный контракт блокирует выход игрока за свои B$ и сезонный межсезон. */
 export async function activeContractForUser(userId: string, now = new Date()) {
   await expireDueContracts(now);
   return prisma.factionPlayerContract.findFirst({
@@ -54,19 +54,36 @@ export async function activeContractForUser(userId: string, now = new Date()) {
   });
 }
 
+function contractUntilLabel(endsAt: Date): string {
+  return endsAt.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 export async function assertCanSelfLeaveFaction(userId: string): Promise<{
   ok: true;
 } | { ok: false; error: string }> {
   const c = await activeContractForUser(userId);
   if (!c) return { ok: true };
-  const until = c.endsAt.toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  return {
+    ok: false,
+    error: `contract_active:${contractUntilLabel(c.endsAt)}`,
+  };
+}
+
+/** Контрактная бронь: нельзя выставлять на межсезонный аукцион. */
+export async function assertCanSeasonTransfer(userId: string): Promise<{
+  ok: true;
+} | { ok: false; error: string; until: string }> {
+  const c = await activeContractForUser(userId);
+  if (!c) return { ok: true };
+  const until = contractUntilLabel(c.endsAt);
   return {
     ok: false,
     error: `contract_active:${until}`,
+    until,
   };
 }
 
@@ -208,8 +225,9 @@ async function mailContractSigned(opts: {
     "Что теперь будет",
     `• Срок: ${CONTRACT_DAYS} календарных дней — с ${fromLabel} по ${untilLabel} включительно.`,
     "• До конца срока ты не можешь сам выйти из фракции за свои B$ (бронь держит состав).",
+    "• Пока контракт жив, тебя нельзя выставить на межсезонный трансферный аукцион (сезонное окно).",
     "• Фракция может назначить тебе % зарплаты от гринда — выплаты идут на личный B$ после ночного окна (около 01:00 МСК).",
-    "• После окончания контракта бронь снимается; выход за свои B$ снова доступен, если не подпишут новый.",
+    "• После окончания контракта бронь снимается; выход за свои B$ и участие в межсезоне снова доступны, если не подпишут новый.",
     "",
     "Если вопросы по контракту — пиши лидеру или заместителю фракции.",
     "",

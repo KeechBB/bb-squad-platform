@@ -104,7 +104,7 @@ export function FactionSeasonsPanel({ slug }: { slug: string }) {
     setDraft(readDraft(slug, draftSeasonId));
   }, [slug, draftSeasonId]);
 
-  /** Сбросить пресет, если игрок вырос из тира. */
+  /** Сбросить пресет, если игрок вырос из тира или подписал контракт. */
   useEffect(() => {
     if (!rows.length) return;
     setDraft((prev) => {
@@ -114,7 +114,7 @@ export function FactionSeasonsPanel({ slug }: { slug: string }) {
         const pick = nextDraft[t.tier];
         if (!pick) continue;
         const live = rows.find((r) => r.userId === pick.userId);
-        if (!live || !valueFitsTier(live.playerValue, t)) {
+        if (!live || live.hasContract || !valueFitsTier(live.playerValue, t)) {
           delete nextDraft[t.tier];
           changed = true;
         } else if (live.playerValue !== pick.playerValue || live.nick !== pick.nick) {
@@ -152,6 +152,7 @@ export function FactionSeasonsPanel({ slug }: { slug: string }) {
   }, [rows, tierOpen, nickFilter]);
 
   function selectPlayer(tier: SeasonTierDef, row: ValueRow) {
+    if (row.hasContract) return;
     setDraft((prev) => {
       const nextDraft: DraftMap = { ...prev };
       // один игрок — только в одном тире
@@ -284,12 +285,14 @@ export function FactionSeasonsPanel({ slug }: { slug: string }) {
         <h4>④ Ценовые тиры — нажми, чтобы выбрать игрока</h4>
         <p className="muted">
           В списке только подходящие по стоимости на сейчас. Один игрок — только
-          в одном тире.
+          в одном тире. На контракте — защита от межсезона, выбрать нельзя.
         </p>
         <div className="faction-seasons-tiers">
           {SEASON_AUCTION_TIERS.map((t) => {
             const pick = draft[t.tier];
-            const eligible = rows.filter((r) => valueFitsTier(r.playerValue, t)).length;
+            const eligible = rows.filter(
+              (r) => !r.hasContract && valueFitsTier(r.playerValue, t),
+            ).length;
             return (
               <button
                 key={t.tier}
@@ -406,7 +409,13 @@ export function FactionSeasonsPanel({ slug }: { slug: string }) {
         </p>
         <p>
           <Hi>Почему игрока пропало из тира?</Hi> Стоимость = 20 000 + весь
-          гринд. Вырос в цене — сменил тир. Выбери снова.
+          гринд (вырос — сменил тир) или живой контракт (бронь от межсезона).
+          Выбери снова.
+        </p>
+        <p>
+          <Hi>Контракт и межсезон?</Hi> Пока контракт активен, игрока{" "}
+          <Hi>нельзя выставить</Hi> на сезонное трансферное окно — ни вручную,
+          ни автоподбором.
         </p>
         <p>
           <Hi>Где ещё почитать?</Hi> Кнопка <Hi>10 · FAQ</Hi> — квадратики тем
@@ -433,8 +442,9 @@ export function FactionSeasonsPanel({ slug }: { slug: string }) {
                   {tierOpen.label} · кого выставить
                 </h3>
                 <p className="muted">
-                  Подходят только {formatTierRangeRu(tierOpen)}. Если человек
-                  подорожает и выйдет из диапазона — слот сбросится.
+                  Подходят только {formatTierRangeRu(tierOpen)}. Контракт
+                  блокирует межсезон. Если человек подорожает / подпишет контракт
+                  — слот сбросится.
                 </p>
               </div>
               <button
@@ -484,12 +494,16 @@ export function FactionSeasonsPanel({ slug }: { slug: string }) {
                       const selected = draft[tierOpen.tier]?.userId === r.userId;
                       const usedElsewhere =
                         pickedIds.has(r.userId) && !selected;
+                      const blocked = r.hasContract;
                       return (
-                        <tr key={r.userId}>
+                        <tr
+                          key={r.userId}
+                          className={blocked ? "is-contract-locked" : undefined}
+                        >
                           <td>
                             <strong className="xfer-nick">{r.nick}</strong>
-                            {r.hasContract ? (
-                              <span className="muted"> · контракт</span>
+                            {blocked ? (
+                              <span className="xfer-pill is-sell"> контракт</span>
                             ) : null}
                             {usedElsewhere ? (
                               <span className="muted"> · уже в другом тире</span>
@@ -502,9 +516,19 @@ export function FactionSeasonsPanel({ slug }: { slug: string }) {
                             <button
                               type="button"
                               className={`btn${selected ? " primary" : ""}`}
+                              disabled={blocked || usedElsewhere}
+                              title={
+                                blocked
+                                  ? "Контракт защищает от сезонного окна"
+                                  : undefined
+                              }
                               onClick={() => selectPlayer(tierOpen, r)}
                             >
-                              {selected ? "Выбран" : "Выбрать"}
+                              {blocked
+                                ? "Защищён"
+                                : selected
+                                  ? "Выбран"
+                                  : "Выбрать"}
                             </button>
                           </td>
                         </tr>

@@ -29694,6 +29694,9 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   font-size: 0.72rem;
   line-height: 1.25;
 }
+.faction-seasons-pick-modal tr.is-contract-locked {
+  opacity: 0.72;
+}
 .faction-seasons-tier-pick {
   display: flex;
   flex-direction: column;
