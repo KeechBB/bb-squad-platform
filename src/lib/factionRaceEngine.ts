@@ -4,6 +4,7 @@ import { logFaction } from "@/lib/factions";
 import { isActiveReserve } from "@/lib/validation";
 import {
   RACE_BASE_GOAL,
+  RACE_GOAL_RESET_AFTER_WINDOW,
   raceProgressLedgerWhere,
   RACE_FACTION_NAMES,
   RACE_GRACE_MS,
@@ -261,7 +262,11 @@ async function finalizeWindow(bounds: RaceWindowBounds, now: Date) {
   for (const r of results) {
     const amount = await grindSum(r.factionId, bounds.start, bounds.end);
     const met = amount >= r.goal;
-    const nextGoal = nextRaceGoal(r.goal, met);
+    // После окна с ×2 гринда — всем 800k; дальше снова ±5% от личной цели.
+    const nextGoal =
+      bounds.id === RACE_GOAL_RESET_AFTER_WINDOW
+        ? RACE_BASE_GOAL
+        : nextRaceGoal(r.goal, met);
     const protectedReserveIds = met
       ? []
       : await snapshotProtectedReserveIds(r.factionId, bounds.end);

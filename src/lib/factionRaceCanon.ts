@@ -6,7 +6,13 @@ export const RACE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 /** Хвост после календарных 00:00: до конца ночной TR (21:00–01:00 МСК). */
 export const RACE_TRAIN_TAIL_MS = 60 * 60 * 1000;
 export const RACE_GRACE_MS = 24 * 60 * 60 * 1000;
-export const RACE_BASE_GOAL = 400_000;
+/** База после ×2 гринда (с окна после 2026-11-21). */
+export const RACE_BASE_GOAL = 800_000;
+/**
+ * После этого окна всем фракциям выставляется RACE_BASE_GOAL (800k),
+ * дальше снова ×1.05 / ×0.95 от личной цели.
+ */
+export const RACE_GOAL_RESET_AFTER_WINDOW = "2026-11-21";
 export const RACE_GOAL_UP = 1.05;
 export const RACE_GOAL_DOWN = 0.95;
 
