@@ -403,10 +403,29 @@ type DealRow = {
   swapUserId: string | null;
 };
 
+export type FactionTransfersScope = "full" | "deals" | "economy";
+
 type Props = {
   slug: string;
   canManage: boolean;
+  /** full — всё; deals — сделки; economy — казна + заработки. */
+  scope?: FactionTransfersScope;
 };
+
+const DEAL_TABS: XferSubTab[] = ["desk", "market", "closed"];
+const ECONOMY_TABS: XferSubTab[] = ["ledger", "trains", "players"];
+
+function tabsForScope(scope: FactionTransfersScope): XferSubTab[] | null {
+  if (scope === "deals") return DEAL_TABS;
+  if (scope === "economy") return ECONOMY_TABS;
+  return null;
+}
+
+function defaultSubTab(scope: FactionTransfersScope, staff: boolean): XferSubTab {
+  if (scope === "economy") return "ledger";
+  if (scope === "deals") return staff ? "desk" : "market";
+  return staff ? "desk" : "ledger";
+}
 
 type OfferType = "BUY" | "SWAP" | "SWAP_CASH";
 
@@ -500,7 +519,8 @@ function StatsBlock({ stats }: { stats: PlayerStats | null }) {
   );
 }
 
-export function FactionTransfers({ slug, canManage }: Props) {
+export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
+  const allowedTabs = tabsForScope(scope);
   const [data, setData] = useState<Payload | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -518,7 +538,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
     null,
   );
   const [subTab, setSubTab] = useState<XferSubTab>(() =>
-    readXferSubTab(slug, canManage),
+    defaultSubTab(scope, canManage),
   );
   const [ledgerSort, setLedgerSort] = useState<{ key: string; dir: SortDir }>({
     key: "when",
@@ -838,18 +858,35 @@ export function FactionTransfers({ slug, canManage }: Props) {
   }
 
   useEffect(() => {
+    if (scope !== "full") {
+      setSubTab(defaultSubTab(scope, isStaff));
+      return;
+    }
     const next = readXferSubTab(slug, isStaff);
     setSubTab(next);
-  }, [slug, isStaff]);
+  }, [slug, isStaff, scope]);
 
   useEffect(() => {
-    if (!isStaff && subTab === "desk") setSubTab("ledger");
-  }, [isStaff, subTab]);
+    if (allowedTabs && !allowedTabs.includes(subTab)) {
+      setSubTab(defaultSubTab(scope, isStaff));
+      return;
+    }
+    if (!isStaff && subTab === "desk") {
+      setSubTab(scope === "deals" ? "market" : "ledger");
+    }
+  }, [isStaff, subTab, allowedTabs, scope]);
 
   function selectSubTab(id: XferSubTab) {
     if (!isStaff && id === "desk") return;
+    if (allowedTabs && !allowedTabs.includes(id)) return;
     setSubTab(id);
-    writeXferSubTab(slug, isStaff, id);
+    if (scope === "full") writeXferSubTab(slug, isStaff, id);
+  }
+
+  function showTab(id: XferSubTab) {
+    if (id === "desk" && !isStaff) return false;
+    if (allowedTabs) return allowedTabs.includes(id);
+    return true;
   }
 
   function toggleSort(
@@ -895,7 +932,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
     <div className={`xfer-panel${isStaff ? " is-staff" : " is-member"}`}>
       <div className="xfer-head">
         <div>
-          <h3 className="xfer-title">Трансферы</h3>
+          <h3 className="xfer-title">
+            {scope === "economy" ? "Экономика фракции" : "Трансферы"}
+          </h3>
           {isStaff ? (
             <p className="muted xfer-sub">
               Казна:{" "}
@@ -940,7 +979,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
       </div>
 
       <div className="admin-tabs clan-tabs xfer-subtabs" role="tablist">
-        {isStaff ? (
+        {showTab("desk") ? (
           <button
             type="button"
             className={`admin-tab${subTab === "desk" ? " active" : ""}`}
@@ -949,41 +988,51 @@ export function FactionTransfers({ slug, canManage }: Props) {
             Выставление
           </button>
         ) : null}
-        <button
-          type="button"
-          className={`admin-tab${subTab === "ledger" ? " active" : ""}`}
-          onClick={() => selectSubTab("ledger")}
-        >
-          Движение казны
-        </button>
-        <button
-          type="button"
-          className={`admin-tab${subTab === "market" ? " active" : ""}`}
-          onClick={() => selectSubTab("market")}
-        >
-          Оферы · рынок
-        </button>
-        <button
-          type="button"
-          className={`admin-tab${subTab === "closed" ? " active" : ""}`}
-          onClick={() => selectSubTab("closed")}
-        >
-          Успешные сделки
-        </button>
-        <button
-          type="button"
-          className={`admin-tab${subTab === "trains" ? " active" : ""}`}
-          onClick={() => selectSubTab("trains")}
-        >
-          Заработок фракций
-        </button>
-        <button
-          type="button"
-          className={`admin-tab${subTab === "players" ? " active" : ""}`}
-          onClick={() => selectSubTab("players")}
-        >
-          Заработок игроков
-        </button>
+        {showTab("ledger") ? (
+          <button
+            type="button"
+            className={`admin-tab${subTab === "ledger" ? " active" : ""}`}
+            onClick={() => selectSubTab("ledger")}
+          >
+            Движение казны
+          </button>
+        ) : null}
+        {showTab("market") ? (
+          <button
+            type="button"
+            className={`admin-tab${subTab === "market" ? " active" : ""}`}
+            onClick={() => selectSubTab("market")}
+          >
+            Оферы · рынок
+          </button>
+        ) : null}
+        {showTab("closed") ? (
+          <button
+            type="button"
+            className={`admin-tab${subTab === "closed" ? " active" : ""}`}
+            onClick={() => selectSubTab("closed")}
+          >
+            Успешные сделки
+          </button>
+        ) : null}
+        {showTab("trains") ? (
+          <button
+            type="button"
+            className={`admin-tab${subTab === "trains" ? " active" : ""}`}
+            onClick={() => selectSubTab("trains")}
+          >
+            Заработок фракций
+          </button>
+        ) : null}
+        {showTab("players") ? (
+          <button
+            type="button"
+            className={`admin-tab${subTab === "players" ? " active" : ""}`}
+            onClick={() => selectSubTab("players")}
+          >
+            Заработок игроков
+          </button>
+        ) : null}
       </div>
 
       {msg ? <p className="xfer-msg">{msg}</p> : null}

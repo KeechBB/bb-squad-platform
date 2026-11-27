@@ -22,7 +22,7 @@ function formatJoinedAt(iso: string) {
   });
 }
 
-type MgmtPanel = "race" | "nightbets" | "transfers" | null;
+type MgmtPanel = "race" | "nightbets" | "transfers" | "economy" | null;
 
 type NavBtn = {
   id: number;
@@ -35,7 +35,7 @@ const NAV_BUTTONS: NavBtn[] = [
   { id: 1, label: "Гонка фракций", panel: "race", ready: true },
   { id: 2, label: "Ставки фракций", panel: "nightbets", ready: true },
   { id: 3, label: "Трансферы", panel: "transfers", ready: true },
-  { id: 4, label: "Кнопка 4", panel: null, ready: false },
+  { id: 4, label: "Экономика фракции", panel: "economy", ready: true },
   { id: 5, label: "Кнопка 5", panel: null, ready: false },
   { id: 6, label: "Кнопка 6", panel: null, ready: false },
   { id: 7, label: "Кнопка 7", panel: null, ready: false },
@@ -225,7 +225,9 @@ export function FactionManagementClient({
                       <tr key={m.id}>
                         <td className="faction-mgmt-roster-num">{m.order || i + 1}</td>
                         <td className="faction-mgmt-roster-nick">{m.nick}</td>
-                        <td className="faction-mgmt-roster-role">{m.roleName}</td>
+                        <td className="faction-mgmt-roster-role">
+                          {m.mainKit && m.mainKit !== "—" ? m.mainKit : "—"}
+                        </td>
                         <td className="faction-mgmt-roster-date">
                           {formatJoinedAt(m.joinedAt)}
                         </td>
@@ -285,6 +287,14 @@ export function FactionManagementClient({
                   <FactionTransfers
                     slug={view.slug}
                     canManage={view.canManage || view.keech}
+                    scope="deals"
+                  />
+                ) : null}
+                {panel === "economy" ? (
+                  <FactionTransfers
+                    slug={view.slug}
+                    canManage={view.canManage || view.keech}
+                    scope="economy"
                   />
                 ) : null}
                 {!panel ? (
