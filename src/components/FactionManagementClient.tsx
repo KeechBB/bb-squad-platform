@@ -47,15 +47,18 @@ const NAV_BUTTONS: NavBtn[] = [
 export function FactionManagementClient({
   initial,
   isMember,
+  mgmtUnlocked = false,
 }: {
   initial: FactionView;
   isMember: boolean;
+  /** Пока true только у Keech — полный UI; иначе заглушка. */
+  mgmtUnlocked?: boolean;
 }) {
   const [view] = useState(initial);
   const [panel, setPanel] = useState<MgmtPanel>("race");
   const [raceKey, setRaceKey] = useState(1);
   const [nightBetsKey, setNightBetsKey] = useState(0);
-  const [deniedOpen, setDeniedOpen] = useState(!isMember);
+  const [deniedOpen, setDeniedOpen] = useState(!isMember && mgmtUnlocked);
   const backHref = `/factions/${encodeURIComponent(view.slug)}`;
   const bgUrl = useMemo(() => factionMgmtBgUrl(view.slug), [view.slug]);
 
@@ -75,6 +78,20 @@ export function FactionManagementClient({
     setPanel(next);
     if (next === "race") setRaceKey((n) => n + 1);
     if (next === "nightbets") setNightBetsKey((n) => n + 1);
+  }
+
+  if (!mgmtUnlocked) {
+    return (
+      <main className="faction-mgmt-denied-page">
+        <div className="faction-mgmt-denied-fallback faction-mgmt-stub">
+          <h1>Менеджмент</h1>
+          <p className="muted">В разработке. Скоро откроем для фракций.</p>
+          <Link href={backHref} className="btn primary">
+            Назад к фракции
+          </Link>
+        </div>
+      </main>
+    );
   }
 
   if (!isMember) {

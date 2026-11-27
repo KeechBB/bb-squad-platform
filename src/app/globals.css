@@ -29191,6 +29191,12 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   gap: 12px;
   text-align: center;
 }
+.faction-mgmt-stub h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .faction-mgmt-denied-modal {
   max-width: 440px;
 }

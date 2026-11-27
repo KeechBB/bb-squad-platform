@@ -396,7 +396,7 @@ export function FactionPageClient({
   const [cwKey, setCwKey] = useState(0);
   const [analyticsKey, setAnalyticsKey] = useState(0);
   const [ratingsKey, setRatingsKey] = useState(0);
-  const [mgmtDeniedOpen, setMgmtDeniedOpen] = useState(false);
+  const [mgmtStubOpen, setMgmtStubOpen] = useState(false);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState("");
   const [busy, setBusy] = useState(false);
@@ -422,7 +422,8 @@ export function FactionPageClient({
   const base = `/api/factions/${encodeURIComponent(view.slug)}`;
   const canPlace = view.keech || view.canManage;
   const memberView = !view.keech && !view.canManage;
-  const canOpenMgmt = Boolean(view.keech || view.mySeat);
+  /** Пока только Keech: остальным — заглушка «в разработке». */
+  const canOpenMgmt = Boolean(view.keech);
 
   useEffect(() => {
     const stored = readStoredFactionTab(view.slug);
@@ -451,7 +452,7 @@ export function FactionPageClient({
       router.push(factionMgmtPath(view.slug));
       return;
     }
-    setMgmtDeniedOpen(true);
+    setMgmtStubOpen(true);
   }
 
   async function reload(href?: string) {
@@ -1052,32 +1053,31 @@ export function FactionPageClient({
         )}
       </div>
 
-      {mgmtDeniedOpen ? (
+      {mgmtStubOpen ? (
         <div
           className="profile-match-modal"
           role="presentation"
-          onClick={() => setMgmtDeniedOpen(false)}
+          onClick={() => setMgmtStubOpen(false)}
         >
           <div className="profile-match-modal-backdrop" />
           <div
             className="profile-match-modal-panel"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="faction-mgmt-denied-title"
+            aria-labelledby="faction-mgmt-stub-title"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="profile-match-modal-head">
               <div>
-                <h3 id="faction-mgmt-denied-title">Менеджмент недоступен</h3>
+                <h3 id="faction-mgmt-stub-title">Менеджмент</h3>
                 <p className="profile-match-modal-sub muted">
-                  Вы не участник фракции «{view.name}». Этот раздел только для
-                  состава.
+                  Раздел в разработке. Скоро откроем для фракций.
                 </p>
               </div>
               <button
                 type="button"
                 className="profile-match-modal-close"
-                onClick={() => setMgmtDeniedOpen(false)}
+                onClick={() => setMgmtStubOpen(false)}
               >
                 ×
               </button>
@@ -1087,7 +1087,7 @@ export function FactionPageClient({
                 <button
                   type="button"
                   className="btn primary"
-                  onClick={() => setMgmtDeniedOpen(false)}
+                  onClick={() => setMgmtStubOpen(false)}
                 >
                   Понятно
                 </button>
