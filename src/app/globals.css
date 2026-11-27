@@ -30207,7 +30207,7 @@ body:has(.faction-mgmt-denied-page) .site-footer {
     grid-template-rows: auto auto minmax(280px, 1fr);
   }
   .faction-mgmt-nav-grid {
-    grid-auto-rows: minmax(48px, auto);
+    grid-template-rows: repeat(5, minmax(56px, 1fr));
   }
   .canvas-scale-host.is-faction-mgmt .canvas-scale-inner.is-full {
     width: 96%;
