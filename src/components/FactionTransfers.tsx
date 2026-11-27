@@ -562,6 +562,8 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
   });
   const [nickFilter, setNickFilter] = useState("");
   const nickFilterKey = nickFilter.trim().toLowerCase();
+  /** Фильтр «Заработок игроков»: имя фракции или "" = все. */
+  const [playersFactionFilter, setPlayersFactionFilter] = useState("");
   const [myValueOpen, setMyValueOpen] = useState(false);
   const [myValue, setMyValue] = useState<MyValueReport | null>(null);
   const [myValueLoading, setMyValueLoading] = useState(false);
@@ -780,9 +782,23 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
     return rows;
   }, [grindMatches, trainsSort]);
 
+  const playersFactionOptions = useMemo(() => {
+    const byName = new Map<string, string>();
+    for (const p of grindPlayers) {
+      const name = (p.factionName || "").trim();
+      if (!name) continue;
+      if (!byName.has(name)) byName.set(name, p.factionSlug || name);
+    }
+    return [...byName.entries()]
+      .map(([name, slug]) => ({ name, slug }))
+      .sort((a, b) => cmpStr(a.name, b.name));
+  }, [grindPlayers]);
+
   const playersSorted = useMemo(() => {
     const q = nickFilterKey;
+    const fac = playersFactionFilter;
     const rows = grindPlayers.filter((p) => {
+      if (fac && (p.factionName || "") !== fac) return false;
       if (!q) return true;
       return (
         p.nick.toLowerCase().includes(q) ||
@@ -802,7 +818,7 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
       return c * dir || cmpStr(a.userId, b.userId);
     });
     return rows;
-  }, [grindPlayers, playersSort, nickFilterKey]);
+  }, [grindPlayers, playersSort, nickFilterKey, playersFactionFilter]);
 
   const ledgerPage = useFitTablePage(ledgerSorted.length, Boolean(data) && subTab === "ledger");
   const pendingPage = useFitTablePage(pendingSorted.length, Boolean(data) && subTab === "market");
@@ -813,8 +829,8 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
   useEffect(() => {
     ledgerPage.setPage(0);
     playersPage.setPage(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset pages when filter text changes
-  }, [nickFilterKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset pages when filters change
+  }, [nickFilterKey, playersFactionFilter]);
   const grindMatchOpen = useMemo(
     () => grindMatches.find((m) => m.matchId === grindMatchId) || null,
     [grindMatches, grindMatchId],
@@ -1585,7 +1601,23 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
 
       {subTab === "players" ? (
         <div className="xfer-tab-body xfer-tables">
-          <div className="xfer-nick-filter">
+          <div className="xfer-nick-filter xfer-players-filters">
+            <label className="xfer-nick-filter-label" htmlFor="xfer-players-faction">
+              Фракция
+            </label>
+            <select
+              id="xfer-players-faction"
+              className="xfer-nick-filter-input xfer-faction-filter-select"
+              value={playersFactionFilter}
+              onChange={(e) => setPlayersFactionFilter(e.target.value)}
+            >
+              <option value="">Все фракции</option>
+              {playersFactionOptions.map((f) => (
+                <option key={f.slug || f.name} value={f.name}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
             <label className="xfer-nick-filter-label" htmlFor="xfer-players-nick">
               Ник / Steam ID
             </label>
@@ -1599,11 +1631,14 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
               autoComplete="off"
               spellCheck={false}
             />
-            {nickFilterKey ? (
+            {nickFilterKey || playersFactionFilter ? (
               <button
                 type="button"
                 className="xfer-nick-filter-clear"
-                onClick={() => setNickFilter("")}
+                onClick={() => {
+                  setNickFilter("");
+                  setPlayersFactionFilter("");
+                }}
               >
                 Сброс
               </button>
@@ -1688,8 +1723,8 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
                   {!playersSorted.length ? (
                     <tr>
                       <td colSpan={5} className="muted">
-                        {nickFilterKey
-                          ? "Нет игроков по этому нику / Steam ID."
+                        {nickFilterKey || playersFactionFilter
+                          ? "Нет игроков по выбранному фильтру."
                           : "Пока никто не капнул гринд B$ в казну."}
                       </td>
                     </tr>

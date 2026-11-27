@@ -27891,6 +27891,12 @@ body:has(.faction-page) .site-footer {
   align-items: center;
   gap: 0.45rem 0.65rem;
 }
+.xfer-players-filters .xfer-faction-filter-select {
+  flex: 0 1 12rem;
+  min-width: 9rem;
+  max-width: 14rem;
+  cursor: pointer;
+}
 .xfer-nick-filter-label {
   font-size: 0.78rem;
   font-weight: 650;
