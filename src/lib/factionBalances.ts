@@ -77,7 +77,14 @@ export async function listBalanceFactions(): Promise<BalanceFactionRow[]> {
   const clanId = await bbClanId();
   if (!clanId) return [];
   const factions = await prisma.faction.findMany({
-    where: { clanId, name: { in: [...RACE_FACTION_NAMES] } },
+    where: {
+      clanId,
+      OR: [
+        { name: { in: [...RACE_FACTION_NAMES] } },
+        { name: { equals: "Легион", mode: "insensitive" } },
+        { slug: { contains: "legion", mode: "insensitive" } },
+      ],
+    },
     select: {
       id: true,
       name: true,
@@ -89,7 +96,14 @@ export async function listBalanceFactions(): Promise<BalanceFactionRow[]> {
     },
     orderBy: { name: "asc" },
   });
-  const rows = factions.filter((f) => !isRaceExcludedName(f.name, f.slug));
+  // Балансы: пятёрка + Легион (в гонке Легион по-прежнему вне системы).
+  const seen = new Set<string>();
+  const rows = factions.filter((f) => {
+    if (seen.has(f.id)) return false;
+    seen.add(f.id);
+    if (isRaceExcludedName(f.name, f.slug)) return true; // Легион — включаем
+    return (RACE_FACTION_NAMES as readonly string[]).includes(f.name);
+  });
   const out: BalanceFactionRow[] = [];
   for (const f of rows) {
     const color =

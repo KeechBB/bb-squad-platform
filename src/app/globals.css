@@ -29313,10 +29313,21 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   text-transform: uppercase;
 }
 .faction-mgmt-roster-num {
-  width: 7%;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  max-width: 3.25rem;
   color: #7dd3fc;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
+  overflow: visible;
+  text-overflow: clip;
+  text-align: right;
+  padding-right: 0.5rem;
+}
+.faction-mgmt-roster-table th.faction-mgmt-roster-num,
+.faction-mgmt-roster-table td.faction-mgmt-roster-num {
+  overflow: visible;
+  text-overflow: clip;
 }
 .faction-mgmt-roster-nick {
   width: 40%;

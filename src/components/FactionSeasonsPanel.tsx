@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { BdAmount } from "@/components/BdMark";
+import { DraggableModal } from "@/components/DraggableModal";
 import {
   FACTION_SEASONS,
   SEASON_AUCTION_HOURS,
@@ -77,7 +78,14 @@ export function FactionSeasonsPanel({
   const [draft, setDraft] = useState<DraftMap>({});
   const [tierOpen, setTierOpen] = useState<SeasonTierDef | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [staffGateOpen, setStaffGateOpen] = useState(false);
   const [nickFilter, setNickFilter] = useState("");
+
+  function requireStaff(): boolean {
+    if (canManage) return true;
+    setStaffGateOpen(true);
+    return false;
+  }
 
   const load = useCallback(async () => {
     setLoadErr("");
@@ -159,6 +167,10 @@ export function FactionSeasonsPanel({
   }, [rows, tierOpen, nickFilter]);
 
   function selectPlayer(tier: SeasonTierDef, row: ValueRow) {
+    if (!canManage) {
+      setStaffGateOpen(true);
+      return;
+    }
     if (row.hasContract) return;
     setDraft((prev) => {
       const nextDraft: DraftMap = { ...prev };
@@ -179,6 +191,10 @@ export function FactionSeasonsPanel({
   }
 
   function clearTier(tier: number) {
+    if (!canManage) {
+      setStaffGateOpen(true);
+      return;
+    }
     setDraft((prev) => {
       const nextDraft = { ...prev };
       delete nextDraft[tier];
@@ -188,7 +204,7 @@ export function FactionSeasonsPanel({
   }
 
   const confirmHint = !canManage
-    ? "Подтверждение выставления — только глава или зам. Черновик тиров можно готовить."
+    ? "Выставлять игроков по тирам — только глава или зам фракции."
     : !current?.endAuctionEnabled
       ? "В этом сезоне межсезонный аукцион пропускаем — кнопка будет доступна с конца зимы."
       : !transferDay
@@ -270,11 +286,12 @@ export function FactionSeasonsPanel({
         <h4>③ Что вы можете делать уже сейчас</h4>
         <ul className="faction-guide-list">
           <li>
-            ✔ Нажми тир ниже — увидишь <Hi>только игроков своей фракции</Hi>,
-            чья текущая стоимость попадает в этот диапазон.
+            ✔ <Hi>Глава или зам</Hi> жмёт тир ниже — видит{" "}
+            <Hi>только игроков своей фракции</Hi>, чья стоимость в диапазоне.
+            Обычный боец при нажатии получает заглушку: только для командира и зама.
           </li>
           <li>
-            ✔ Выбери по одному человеку на тир — это <Hi>черновик</Hi> на
+            ✔ Штаб выбирает по одному человеку на тир — <Hi>черновик</Hi> на
             межсезон. Можно менять сколько угодно раз до дня трансферов.
           </li>
           <li>
@@ -285,7 +302,7 @@ export function FactionSeasonsPanel({
           <li>
             🔒 Кнопка <Hi>«Подтвердить выставление»</Hi> серая до дня
             трансферов. В день торгов она оживает; по нажатию — модалка по
-            центру с проверкой пятёрки.
+            центру с проверкой пятёрки. Только штаб.
           </li>
         </ul>
       </section>
@@ -295,6 +312,7 @@ export function FactionSeasonsPanel({
         <p className="muted">
           В списке только подходящие по стоимости на сейчас. Один игрок — только
           в одном тире. На контракте — защита от межсезона, выбрать нельзя.
+          Кнопки тиров — только для главы и зама.
         </p>
         <div className="faction-seasons-tiers">
           {SEASON_AUCTION_TIERS.map((t) => {
@@ -310,6 +328,7 @@ export function FactionSeasonsPanel({
                   pick ? " has-pick" : ""
                 }`}
                 onClick={() => {
+                  if (!requireStaff()) return;
                   setNickFilter("");
                   setTierOpen(t);
                 }}
@@ -337,9 +356,13 @@ export function FactionSeasonsPanel({
           <button
             type="button"
             className="btn primary"
-            disabled={!confirmEnabled}
+            disabled={canManage ? !confirmEnabled : false}
             title={confirmHint}
-            onClick={() => setConfirmOpen(true)}
+            onClick={() => {
+              if (!requireStaff()) return;
+              if (!confirmEnabled) return;
+              setConfirmOpen(true);
+            }}
           >
             Подтвердить выставление
           </button>
@@ -413,8 +436,9 @@ export function FactionSeasonsPanel({
       <section className="faction-guide-block">
         <h4>⑦ Частые вопросы</h4>
         <p>
-          <Hi>Можно ли готовить список заранее?</Hi> Да — тиры кликабельны весь
-          сезон. Подтверждение только в день трансферов.
+          <Hi>Можно ли готовить список заранее?</Hi> Да, но только{" "}
+          <Hi>глава или зам</Hi> — тиры кликабельны весь сезон. Подтверждение
+          только в день трансферов. Обычный боец при клике видит заглушку.
         </p>
         <p>
           <Hi>Почему игрока пропало из тира?</Hi> Стоимость = 20 000 + весь
@@ -634,6 +658,51 @@ export function FactionSeasonsPanel({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {staffGateOpen ? (
+        <DraggableModal
+          open
+          closeOnBackdrop
+          onClose={() => setStaffGateOpen(false)}
+        >
+          <header
+            className="profile-match-modal-head"
+            data-drag-handle
+            title="Перетащить окно"
+          >
+            <div>
+              <h2 className="profile-mail-modal-title">Только для штаба</h2>
+              <p className="muted">Межсезонное выставление</p>
+            </div>
+            <button
+              type="button"
+              className="profile-match-modal-close"
+              onClick={() => setStaffGateOpen(false)}
+            >
+              ×
+            </button>
+          </header>
+          <div className="profile-match-modal-body">
+            <p>
+              Выставлять игроков по ценовым тирам могут только{" "}
+              <strong>командир фракции</strong> и <strong>зам фракции</strong>.
+            </p>
+            <p className="muted">
+              Обычные бойцы смотрят инструкцию и календарь сезонов, но черновик
+              и подтверждение — зона штаба.
+            </p>
+            <div className="clan-invite-row" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setStaffGateOpen(false)}
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </DraggableModal>
       ) : null}
     </div>
   );
