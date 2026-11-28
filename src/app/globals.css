@@ -28029,14 +28029,31 @@ body:has(.faction-page) .site-footer {
 .xfer-scarce-count { font-weight: 800; }
 .xfer-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .xfer-form select, .xfer-form input { min-height: 36px; padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid rgba(148,163,184,0.35); background: rgba(15,23,42,0.55); color: inherit; }
-/* Резерв в селекте аукциона — как синий календарный резерв */
-.xfer-auction-player-select option.xfer-opt-reserve,
-.xfer-auction-player-select option.xfer-opt-reserve:disabled {
+/* Аукцион: актив / резерв / неактив в селекте */
+.xfer-auction-player-select option.xfer-opt-active {
+  color: #e2e8f0;
+}
+.xfer-auction-player-select option.xfer-opt-reserve {
   color: #93c5fd;
+}
+.xfer-auction-player-select option.xfer-opt-inactive {
+  color: #f87171;
+}
+.xfer-opt-active-label {
+  color: #e2e8f0;
+  font-weight: 700;
 }
 .xfer-opt-reserve-label {
   color: #93c5fd;
   font-weight: 700;
+}
+.xfer-opt-inactive-label {
+  color: #f87171;
+  font-weight: 700;
+}
+.xfer-auction-tone-legend {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
 }
 .xfer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
 .xfer-card { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; align-items: center; padding: 0.55rem 0.7rem; border-radius: 8px; background: rgba(15, 23, 42, 0.45); border: 1px solid rgba(148,163,184,0.18); }

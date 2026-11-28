@@ -371,7 +371,28 @@ export function FactionTransferAuctionTab({
               className="xfer-nick-filter-input xfer-auction-player-select"
               value={listUserId}
               disabled={!windowOpen || busy}
-              onChange={(e) => setListUserId(e.target.value)}
+              onChange={(e) => {
+                const id = e.target.value;
+                if (!id) {
+                  setListUserId("");
+                  return;
+                }
+                const p = members.find((m) => m.userId === id);
+                const days30 = p?.trainDays30 ?? 0;
+                const ok =
+                  p != null &&
+                  p.auctionListAllowed !== false &&
+                  days30 >= MIN_TRAIN_DAYS_30;
+                if (!ok) {
+                  setListUserId("");
+                  setErr(
+                    `Неактив (явка ${days30}/30д): на аукцион нужно ≥${MIN_TRAIN_DAYS_30} TR-дней.`,
+                  );
+                  return;
+                }
+                setErr("");
+                setListUserId(id);
+              }}
             >
               <option value="">Игрок…</option>
               {members
@@ -382,20 +403,29 @@ export function FactionTransferAuctionTab({
                     p.auctionListAllowed !== false &&
                     days30 >= MIN_TRAIN_DAYS_30;
                   const inReserve = Boolean(p.inReserve);
+                  // 1 актив белый · 2 резерв голубой · 3 неактив (<4/30д) красный
+                  const tone = !ok
+                    ? "inactive"
+                    : inReserve
+                      ? "reserve"
+                      : "active";
+                  const color =
+                    tone === "inactive"
+                      ? "#f87171"
+                      : tone === "reserve"
+                        ? "#93c5fd"
+                        : "#e2e8f0";
                   return (
                     <option
                       key={p.userId}
                       value={p.userId}
-                      disabled={!ok}
-                      className={inReserve ? "xfer-opt-reserve" : undefined}
-                      style={
-                        inReserve ? { color: "#93c5fd" } : undefined
-                      }
+                      className={`xfer-opt-${tone}`}
+                      style={{ color }}
                     >
                       {p.nick} · рынок {p.estimate.toLocaleString("ru-RU")} B$ ·
                       явка {days30}/30д
                       {inReserve ? " · резерв" : ""}
-                      {!ok ? " · мало TR" : ""}
+                      {!ok ? " · неактив" : ""}
                     </option>
                   );
                 })}
@@ -418,14 +448,17 @@ export function FactionTransferAuctionTab({
               На аукцион
             </button>
           </div>
+          <p className="muted xfer-auction-tone-legend">
+            <span className="xfer-opt-active-label">белый</span> — актив ·{" "}
+            <span className="xfer-opt-reserve-label">голубой</span> — резерв ·{" "}
+            <span className="xfer-opt-inactive-label">красный</span> — неактив
+            (&lt;{MIN_TRAIN_DAYS_30} TR / 30д, выставить нельзя)
+          </p>
           {selected ? (
             <p className="muted">
               Рынок {selected.nick}:{" "}
               <BdAmount n={selected.estimate} /> · ниже нельзя · явка{" "}
               {selected.trainDays30 ?? 0} TR / 30д
-              {(selected.trainDays30 ?? 0) < MIN_TRAIN_DAYS_30
-                ? ` (нужно ≥${MIN_TRAIN_DAYS_30})`
-                : ""}
               {selected.inReserve ? (
                 <>
                   {" · "}
