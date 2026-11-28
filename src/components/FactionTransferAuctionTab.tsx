@@ -357,9 +357,11 @@ export function FactionTransferAuctionTab({
         <h4>Аукцион игроков</h4>
         <p className="muted">
           Штаб выставляет бойца на торги. Минимум — рыночная стоимость; можно
-          выше. Срок — {days} дней. Явка за 30 суток — не меньше{" "}
-          <mark className="faction-guide-hi">{MIN_TRAIN_DAYS_30} TR-дней</mark>
-          . Пока идут торги, игрок{" "}
+          выше. Срок — {days} дней. Не в резерве — явка за неделю не меньше{" "}
+          <mark className="faction-guide-hi">
+            {MIN_TRAIN_DAYS_WEEK} TR-дней
+          </mark>
+          ; резерв можно выставлять всегда. Пока идут торги, игрок{" "}
           <mark className="faction-guide-hi">остаётся в составе</mark>. Без
           ставок к дедлайну — лот снимается, боец остаётся у вас. Победа другой
           фракции: <mark className="faction-guide-hi">20%</mark> игроку,{" "}
