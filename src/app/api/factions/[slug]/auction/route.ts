@@ -3,7 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { loadFactionView } from "@/lib/factions";
 import {
+  cancelFactionListAuction,
   listAuctionBoard,
+  openFactionListAuction,
   openSelfListAuction,
   placeAuctionBid,
   settleDueAuctions,
@@ -58,6 +60,8 @@ export async function POST(req: Request, ctx: Ctx) {
     op?: string;
     lotId?: string;
     amountBd?: number;
+    userId?: string;
+    askPrice?: number;
   };
   const op = String(body.op || "bid");
 
@@ -98,6 +102,86 @@ export async function POST(req: Request, ctx: Ctx) {
       { error: "Ставки на аукционе — только штаб фракции" },
       { status: 403 },
     );
+  }
+
+  if (op === "faction_list") {
+    const res = await openFactionListAuction({
+      factionId: loaded.view.id,
+      userId: String(body.userId || ""),
+      actorUserId: meId,
+      askPrice: Number(body.askPrice) || 0,
+    });
+    if (!res.ok) {
+      if (res.error === "contract_active") {
+        return NextResponse.json(
+          {
+            error: "contract_active",
+            until: res.until,
+            factionName: res.factionName,
+            message: `У игрока контракт с «${res.factionName}» до ${res.until}.`,
+          },
+          { status: 400 },
+        );
+      }
+      if (res.error === "below_market") {
+        return NextResponse.json(
+          {
+            error: "below_market",
+            marketBd: res.marketBd,
+            message: `Нельзя ниже рынка (${(res.marketBd || 0).toLocaleString("ru-RU")} B$)`,
+          },
+          { status: 400 },
+        );
+      }
+      if (res.error === "low_attendance") {
+        const have = res.trainDays7 ?? res.trainDays30 ?? 0;
+        const need = res.minTrainDaysWeek ?? res.minTrainDays30 ?? 4;
+        return NextResponse.json(
+          {
+            error: "low_attendance",
+            trainDays7: have,
+            trainDays30: have,
+            minTrainDaysWeek: need,
+            minTrainDays30: need,
+            message: `Неактив: явка ${have}/7д (нужно ≥${need} TR-дней за неделю, либо резерв)`,
+          },
+          { status: 400 },
+        );
+      }
+      const map: Record<string, string> = {
+        not_member: "Игрок не в вашей фракции",
+        not_member_seat: "Глава и зам на аукцион штабом не выставляются",
+        already_on_auction: "Игрок уже на аукционе",
+        race_reserve: "Игрок в честном резерве гонки — нельзя",
+        bad_price: "Укажите стартовую цену",
+        no_keech: "Сервис временно недоступен",
+      };
+      return NextResponse.json(
+        { error: map[res.error] || res.error },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json(res);
+  }
+
+  if (op === "cancel_faction_list") {
+    const res = await cancelFactionListAuction({
+      lotId: String(body.lotId || ""),
+      factionId: loaded.view.id,
+      actorUserId: meId,
+    });
+    if (!res.ok) {
+      const map: Record<string, string> = {
+        lot_closed: "Лот уже закрыт",
+        wrong_kind: "Это не лот выставления фракции",
+        not_seller: "Снимать может только фракция-продавец",
+      };
+      return NextResponse.json(
+        { error: map[res.error] || res.error },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json(res);
   }
 
   if (op === "bid") {

@@ -9,12 +9,35 @@ type Listable = {
   seat: string;
   kit: string;
   estimate: number;
+  trainDays7?: number;
   trainDays30?: number;
   auctionListAllowed?: boolean;
   inReserve?: boolean;
 };
 
-const MIN_TRAIN_DAYS_30 = 4;
+/** >3 TR-дней за неделю → актив; резерв — всегда можно. */
+const MIN_TRAIN_DAYS_WEEK = 4;
+
+type AuctionTone = "active" | "reserve" | "inactive";
+
+function auctionTone(p: Listable): AuctionTone {
+  if (p.inReserve) return "reserve";
+  const days7 = p.trainDays7 ?? p.trainDays30 ?? 0;
+  const allowed =
+    p.auctionListAllowed === true ||
+    (p.auctionListAllowed !== false && days7 >= MIN_TRAIN_DAYS_WEEK);
+  return allowed ? "active" : "inactive";
+}
+
+function toneLabel(tone: AuctionTone): string {
+  if (tone === "reserve") return "резерв";
+  if (tone === "inactive") return "неактив";
+  return "актив";
+}
+
+function canListTone(tone: AuctionTone): boolean {
+  return tone !== "inactive";
+}
 
 type LotBid = {
   factionId: string;
@@ -111,6 +134,7 @@ export function FactionTransferAuctionTab({
   const [listUserId, setListUserId] = useState("");
   const [askPrice, setAskPrice] = useState("");
   const [bidDraft, setBidDraft] = useState<Record<string, string>>({});
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const members = useMemo(
     () => listable.filter((p) => p.seat === "MEMBER"),
@@ -186,13 +210,11 @@ export function FactionTransferAuctionTab({
 
   async function listPlayer() {
     if (!manage || !selected) return;
-    const days30 = selected.trainDays30 ?? 0;
-    if (
-      selected.auctionListAllowed === false ||
-      days30 < MIN_TRAIN_DAYS_30
-    ) {
+    const tone = auctionTone(selected);
+    const days7 = selected.trainDays7 ?? selected.trainDays30 ?? 0;
+    if (!canListTone(tone)) {
       setErr(
-        `Явка ниже порога: ${days30} TR-дней за 30 суток (нужно ≥${MIN_TRAIN_DAYS_30})`,
+        `Неактив: явка ${days7}/7д (нужно ≥${MIN_TRAIN_DAYS_WEEK} за неделю). Резерв можно выставлять всегда.`,
       );
       return;
     }
@@ -212,9 +234,14 @@ export function FactionTransferAuctionTab({
     if (
       !window.confirm(
         `Выставить ${selected.nick} на аукцион?\n` +
+          `Категория: ${toneLabel(tone)}\n` +
+          `Явка: ${days7} TR-дней за неделю` +
+          (selected.trainDays30 != null
+            ? ` · ${selected.trainDays30}/30д`
+            : "") +
+          `\n` +
           `Рынок: ${selected.estimate.toLocaleString("ru-RU")} B$\n` +
           `Старт / мин.: ${amount.toLocaleString("ru-RU")} B$\n` +
-          `Явка: ${days30} TR-дней / 30 суток\n` +
           `Срок: ${days} дн.\n` +
           `Игрок остаётся в составе, пока кого-то не купят или не истечёт срок без ставок.`,
       )
@@ -366,70 +393,80 @@ export function FactionTransferAuctionTab({
               открытым лотам можно ставить.
             </p>
           ) : null}
-          <div className="xfer-form">
-            <select
-              className="xfer-nick-filter-input xfer-auction-player-select"
-              value={listUserId}
-              disabled={!windowOpen || busy}
-              onChange={(e) => {
-                const id = e.target.value;
-                if (!id) {
-                  setListUserId("");
-                  return;
-                }
-                const p = members.find((m) => m.userId === id);
-                const days30 = p?.trainDays30 ?? 0;
-                const ok =
-                  p != null &&
-                  p.auctionListAllowed !== false &&
-                  days30 >= MIN_TRAIN_DAYS_30;
-                if (!ok) {
-                  setListUserId("");
-                  setErr(
-                    `Неактив (явка ${days30}/30д): на аукцион нужно ≥${MIN_TRAIN_DAYS_30} TR-дней.`,
-                  );
-                  return;
-                }
-                setErr("");
-                setListUserId(id);
-              }}
-            >
-              <option value="">Игрок…</option>
-              {members
-                .filter((p) => !onAuctionIds.has(p.userId))
-                .map((p) => {
-                  const days30 = p.trainDays30 ?? 0;
-                  const ok =
-                    p.auctionListAllowed !== false &&
-                    days30 >= MIN_TRAIN_DAYS_30;
-                  const inReserve = Boolean(p.inReserve);
-                  // 1 актив белый · 2 резерв голубой · 3 неактив (<4/30д) красный
-                  const tone = !ok
-                    ? "inactive"
-                    : inReserve
-                      ? "reserve"
-                      : "active";
-                  const color =
-                    tone === "inactive"
-                      ? "#f87171"
-                      : tone === "reserve"
-                        ? "#93c5fd"
-                        : "#e2e8f0";
-                  return (
-                    <option
-                      key={p.userId}
-                      value={p.userId}
-                      className={`xfer-opt-${tone}`}
-                      style={{ color }}
-                    >
-                      {p.nick} · рынок {p.estimate.toLocaleString("ru-RU")} B$ ·
-                      явка {days30}/30д
-                      {inReserve ? " · резерв" : ""}
-                      {!ok ? " · неактив" : ""}
-                    </option>
-                  );
-                })}
-            </select>
+          <div className="xfer-form xfer-auction-list-form">
+            <div className="xfer-auction-picker">
+              <button
+                type="button"
+                className={`xfer-nick-filter-input xfer-auction-picker-btn${
+                  selected ? ` is-${auctionTone(selected)}` : ""
+                }`}
+                disabled={!windowOpen || busy}
+                aria-expanded={pickerOpen}
+                onClick={() => setPickerOpen((v) => !v)}
+              >
+                {selected ? (
+                  <>
+                    <span className="xfer-auction-picker-nick">
+                      {selected.nick}
+                    </span>
+                    <span className="xfer-auction-picker-meta">
+                      {" "}
+                      · рынок {selected.estimate.toLocaleString("ru-RU")} B$ ·
+                      явка {selected.trainDays7 ?? selected.trainDays30 ?? 0}
+                      /7д · {toneLabel(auctionTone(selected))}
+                    </span>
+                  </>
+                ) : (
+                  "Игрок…"
+                )}
+              </button>
+              {pickerOpen ? (
+                <ul className="xfer-auction-picker-list" role="listbox">
+                  {members
+                    .filter((p) => !onAuctionIds.has(p.userId))
+                    .map((p) => {
+                      const tone = auctionTone(p);
+                      const days7 = p.trainDays7 ?? p.trainDays30 ?? 0;
+                      const can = canListTone(tone);
+                      return (
+                        <li key={p.userId}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={p.userId === listUserId}
+                            className={`xfer-auction-picker-opt is-${tone}${
+                              p.userId === listUserId ? " is-selected" : ""
+                            }`}
+                            onClick={() => {
+                              if (!can) {
+                                setErr(
+                                  `Неактив (явка ${days7}/7д): нужно ≥${MIN_TRAIN_DAYS_WEEK} TR за неделю. Резерв — всегда можно.`,
+                                );
+                                setListUserId("");
+                                setPickerOpen(false);
+                                return;
+                              }
+                              setErr("");
+                              setListUserId(p.userId);
+                              setPickerOpen(false);
+                            }}
+                          >
+                            <span className="xfer-auction-picker-nick">
+                              {p.nick}
+                            </span>
+                            <span className="xfer-auction-picker-meta">
+                              {" "}
+                              · рынок {p.estimate.toLocaleString("ru-RU")} B$ ·
+                              явка {days7}/7д · {toneLabel(tone)}
+                              {!can ? " · нельзя" : ""}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                </ul>
+              ) : null}
+            </div>
             <input
               className="xfer-nick-filter-input"
               type="text"
@@ -449,22 +486,25 @@ export function FactionTransferAuctionTab({
             </button>
           </div>
           <p className="muted xfer-auction-tone-legend">
-            <span className="xfer-opt-active-label">белый</span> — актив ·{" "}
-            <span className="xfer-opt-reserve-label">голубой</span> — резерв ·{" "}
+            <span className="xfer-opt-active-label">белый</span> — актив (≥
+            {MIN_TRAIN_DAYS_WEEK}/7д) ·{" "}
+            <span className="xfer-opt-reserve-label">голубой</span> — резерв
+            (можно всегда) ·{" "}
             <span className="xfer-opt-inactive-label">красный</span> — неактив
-            (&lt;{MIN_TRAIN_DAYS_30} TR / 30д, выставить нельзя)
+            (&lt;{MIN_TRAIN_DAYS_WEEK}/7д, нельзя)
           </p>
           {selected ? (
             <p className="muted">
-              Рынок {selected.nick}:{" "}
-              <BdAmount n={selected.estimate} /> · ниже нельзя · явка{" "}
-              {selected.trainDays30 ?? 0} TR / 30д
-              {selected.inReserve ? (
-                <>
-                  {" · "}
-                  <span className="xfer-opt-reserve-label">резерв</span>
-                </>
-              ) : null}
+              <span className={`xfer-opt-${auctionTone(selected)}-label`}>
+                {toneLabel(auctionTone(selected))}
+              </span>
+              {" · "}
+              явка {selected.trainDays7 ?? 0}/7д
+              {selected.trainDays30 != null
+                ? ` · ${selected.trainDays30}/30д`
+                : ""}
+              {" · рынок "}
+              <BdAmount n={selected.estimate} /> · ниже нельзя
             </p>
           ) : null}
         </section>

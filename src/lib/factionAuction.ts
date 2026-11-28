@@ -21,12 +21,32 @@ import { listSriFactions, isSlagCandidate, SRI_FACTION_NAMES } from "@/lib/sri";
 export const AUCTION_SENDER_KIND = "auction";
 export const AUCTION_SENDER_LABEL = "Аукцион";
 export const AUCTION_HOURS = 16;
+/** Штаб выставляет своего бойца в Трансферах → Аукцион. */
+export const FACTION_LIST_AUCTION_DAYS = 7;
+/** @deprecated был порог за 30д; канон теперь неделя. */
+export const FACTION_LIST_MIN_TRAIN_DAYS_30 = 4;
+/** Минимум уникальных TR-дней за последние 7 суток (не в резерве): >3 → можно. */
+export const FACTION_LIST_MIN_TRAIN_DAYS_WEEK = 4;
+/** Рекрут (новичок без фракции): доля → игроку; остальное в банк Аукциона. */
 export const AUCTION_RECRUIT_CUT_RATIO = 0.1;
-/** Самовыставление: доля победной ставки → личный B$ игрока. */
+/** Самовыставление / продажа штабом: доля → личный B$ игрока. */
 export const AUCTION_SELF_CUT_RATIO = 0.2;
+/** Продажа штабом: остаток после доли игрока → казне продавца. */
+export const AUCTION_FACTION_SELLER_RATIO = 1 - AUCTION_SELF_CUT_RATIO;
 
 export function auctionEndsAt(from = new Date()): Date {
   return new Date(from.getTime() + AUCTION_HOURS * 60 * 60 * 1000);
+}
+
+export function factionListAuctionEndsAt(from = new Date()): Date {
+  return new Date(
+    from.getTime() + FACTION_LIST_AUCTION_DAYS * 24 * 60 * 60 * 1000,
+  );
+}
+
+/** Лот, пока игрок остаётся в составе (сам / штаб выставил). */
+export function lotKeepsFactionSeat(lotKind: string | null | undefined): boolean {
+  return lotKind === "self_list" || lotKind === "faction_list";
 }
 
 async function keechUser() {
@@ -89,6 +109,41 @@ async function mailAuction(opts: {
     // sourceKey unique — повторный тик
     if (String(e).includes("Unique constraint")) return null;
     console.error("auction mail failed", e);
+    return null;
+  }
+}
+
+/** Письмо от штаба фракции — фон/акцент цветом фракции в почте. */
+async function mailFromFaction(opts: {
+  authorId: string;
+  factionName: string;
+  recipientIds: string[];
+  title: string;
+  body: string;
+  sourceKey: string;
+  tags?: string[];
+}) {
+  const ids = [...new Set(opts.recipientIds.filter(Boolean))];
+  if (!ids.length) return null;
+  const label = `Штаб · ${opts.factionName}`;
+  try {
+    const mail = await prisma.profileMail.create({
+      data: {
+        title: opts.title,
+        body: opts.body,
+        senderKind: "faction",
+        senderLabel: label,
+        tags: opts.tags || ["Аукцион", "Фракции"],
+        sourceKey: opts.sourceKey,
+        authorId: opts.authorId,
+        recipients: { create: ids.map((userId) => ({ userId })) },
+      },
+      select: { id: true },
+    });
+    return mail.id;
+  } catch (e) {
+    if (String(e).includes("Unique constraint")) return null;
+    console.error("faction auction mail failed", e);
     return null;
   }
 }
@@ -377,6 +432,8 @@ export async function settleAuctionLot(lotId: string): Promise<{
 
   const lotKind = lot.lotKind || "recruit";
   const isSelfList = lotKind === "self_list";
+  const isFactionList = lotKind === "faction_list";
+  const staysInFaction = lotKeepsFactionSeat(lotKind);
 
   if (!winner) {
     await prisma.factionAuctionLot.update({
@@ -386,11 +443,13 @@ export async function settleAuctionLot(lotId: string): Promise<{
     const recipients = await staffIdsForAuctionFactions();
     await mailAuction({
       authorId: keech.id,
-      recipientIds: isSelfList ? [...recipients, lot.userId] : recipients,
+      recipientIds: staysInFaction ? [...recipients, lot.userId] : recipients,
       title: `Аукцион · ${nick} · без ставок`,
       body: [
-        isSelfList
-          ? `Лот самовыставления ${nick} закрыт без ставок. Игрок остаётся в своей фракции.`
+        staysInFaction
+          ? isFactionList
+            ? `Лот «${nick}» снят с аукциона без ставок. Игрок остаётся во фракции.`
+            : `Лот самовыставления ${nick} закрыт без ставок. Игрок остаётся в своей фракции.`
           : `Лот на ${nick} закрыт без ставок. Игрок остаётся свободным агентом.`,
         "",
         "— Аукцион",
@@ -400,7 +459,7 @@ export async function settleAuctionLot(lotId: string): Promise<{
     return { ok: true, reason: "no_bids" };
   }
 
-  if (lot.user.factionMembership && !isSelfList) {
+  if (lot.user.factionMembership && !staysInFaction) {
     // Рекрут/штраф: уже во фракции — вернуть все ставки
     await refundAllBids(lot.id, active.map((b) => b.id));
     await prisma.factionAuctionLot.update({
@@ -411,12 +470,24 @@ export async function settleAuctionLot(lotId: string): Promise<{
   }
 
   const winAmt = winner.amountBd;
-  const cutRatio = isSelfList ? AUCTION_SELF_CUT_RATIO : AUCTION_RECRUIT_CUT_RATIO;
-  const recruitCut = Math.max(0, Math.floor(winAmt * cutRatio));
   const losers = active.filter((b) => b.id !== winner.id);
   const sourceFactionId = lot.sourceFactionId || null;
   const sameFaction =
-    isSelfList && sourceFactionId && sourceFactionId === winner.factionId;
+    staysInFaction && sourceFactionId && sourceFactionId === winner.factionId;
+  /** Рекрут/штраф: 10% игроку + банк. Сам: 20% игроку. Фракция→продажа: 20% игроку + 80% казне продавца. */
+  const cutRatio = isSelfList
+    ? AUCTION_SELF_CUT_RATIO
+    : isFactionList
+      ? sameFaction
+        ? 0
+        : AUCTION_SELF_CUT_RATIO
+      : AUCTION_RECRUIT_CUT_RATIO;
+  const recruitCut = Math.max(0, Math.floor(winAmt * cutRatio));
+  /** Продажа штабом другой фракции: 80% победной ставки → казна продавца. */
+  const paySeller =
+    isFactionList && !sameFaction && Boolean(sourceFactionId)
+      ? Math.max(0, winAmt - recruitCut)
+      : 0;
 
   await ensureAuctionBank();
 
@@ -466,7 +537,28 @@ export async function settleAuctionLot(lotId: string): Promise<{
       });
     }
 
-    if (isSelfList) {
+    if (paySeller > 0 && sourceFactionId) {
+      await tx.auctionBank.update({
+        where: { id: "global" },
+        data: { blueberryBalance: { decrement: paySeller } },
+      });
+      await tx.faction.update({
+        where: { id: sourceFactionId },
+        data: { blueberryBalance: { increment: paySeller } },
+      });
+      await tx.factionLedgerEntry.create({
+        data: {
+          factionId: sourceFactionId,
+          amount: paySeller,
+          kind: "auction_sale",
+          sourceKey: `auction_sale:${lot.id}`,
+          note: `Продажа с аукциона (+${paySeller.toLocaleString("ru-RU")} ${BD_MARK}) · ${nick}`,
+          userId: lot.userId,
+        },
+      });
+    }
+
+    if (staysInFaction) {
       if (!sameFaction) {
         await tx.factionMember.deleteMany({ where: { userId: lot.userId } });
         await tx.factionMember.create({
@@ -490,6 +582,12 @@ export async function settleAuctionLot(lotId: string): Promise<{
       where: { userId: lot.userId, status: { in: ["PENDING", "ACCEPTED"] } },
       data: { status: "CANCELLED" },
     });
+    if (staysInFaction) {
+      await tx.transferListing.updateMany({
+        where: { playerUserId: lot.userId, status: "ACTIVE" },
+        data: { status: "WITHDRAWN" },
+      });
+    }
 
     await tx.factionAuctionLot.update({
       where: { id: lot.id },
@@ -510,14 +608,31 @@ export async function settleAuctionLot(lotId: string): Promise<{
       targetNick: nick,
       factionName: winner.faction.name,
       clanId: winner.faction.clanId,
-      how: isSelfList ? "Аукцион (сам)" : "Аукцион",
+      how: isSelfList
+        ? "Аукцион (сам)"
+        : isFactionList
+          ? "Аукцион (фракция)"
+          : "Аукцион",
       reason: `победная ставка ${winAmt.toLocaleString("ru-RU")} ${BD_MARK}`,
     });
   }
 
-  const staffWinner = await listSriFactions().then(
-    (fs) => fs.find((f) => f.id === winner.factionId),
-  );
+  const allFactions = await listSriFactions();
+  const staffWinner = allFactions.find((f) => f.id === winner.factionId);
+  const staffSeller = sourceFactionId
+    ? allFactions.find((f) => f.id === sourceFactionId)
+    : null;
+  const sellerFactionName =
+    staffSeller?.name ||
+    (sourceFactionId
+      ? (
+          await prisma.faction.findUnique({
+            where: { id: sourceFactionId },
+            select: { name: true },
+          })
+        )?.name
+      : null) ||
+    "продавец";
   const winnerRecipients = [
     ...(staffWinner?.leaderIds || []),
     ...(staffWinner?.deputyIds || []),
@@ -525,32 +640,142 @@ export async function settleAuctionLot(lotId: string): Promise<{
     lot.userId,
   ];
   const cutPct = Math.round(cutRatio * 100);
-  await mailAuction({
-    authorId: keech.id,
-    recipientIds: winnerRecipients,
-    title: sameFaction
-      ? `Аукцион · ${nick} · остаётся в «${winner.faction.name}»`
-      : `Аукцион · ${nick} → ${winner.faction.name}`,
-    body: [
+  const bidLines = active
+    .slice()
+    .sort((a, b) => b.amountBd - a.amountBd)
+    .map(
+      (b) =>
+        `• ${b.faction.name}: ${b.amountBd.toLocaleString("ru-RU")} ${BD_MARK}${
+          b.id === winner.id ? " ← победа" : ""
+        }`,
+    );
+
+  if (isFactionList) {
+    const detailBlock = [
+      `Игрок: ${nick}`,
       sameFaction
-        ? `Победа своей фракции: «${winner.faction.name}» выкупила ${nick} за ${winAmt.toLocaleString("ru-RU")} ${BD_MARK} — игрок остаётся в составе.`
-        : `Победа: «${winner.faction.name}» забрала ${nick} за ${winAmt.toLocaleString("ru-RU")} ${BD_MARK}.`,
-      recruitCut > 0
-        ? `Игроку на личный баланс: ${recruitCut.toLocaleString("ru-RU")} ${BD_MARK} (${cutPct}%).`
+        ? `Итог: выкуп своей фракцией «${winner.faction.name}» — остаётся в составе.`
+        : `Итог: «${sellerFactionName}» → «${winner.faction.name}»`,
+      `Победная ставка: ${winAmt.toLocaleString("ru-RU")} ${BD_MARK}`,
+      lot.minBidBd
+        ? `Старт / мин. лота: ${lot.minBidBd.toLocaleString("ru-RU")} ${BD_MARK}`
         : null,
-      `Остальное — в банк Аукциона.`,
+      recruitCut > 0
+        ? `Игроку на личный B$: ${recruitCut.toLocaleString("ru-RU")} ${BD_MARK} (${Math.round(AUCTION_SELF_CUT_RATIO * 100)}%)`
+        : null,
+      paySeller > 0
+        ? `В казну продавца («${sellerFactionName}»): ${paySeller.toLocaleString("ru-RU")} ${BD_MARK} (${Math.round(AUCTION_FACTION_SELLER_RATIO * 100)}%)`
+        : sameFaction
+          ? `Выкуп — ставка осталась в банке Аукциона.`
+          : null,
       "",
-      formatDossierBlock(dossier, nick),
+      "Ставки фракций:",
+      ...bidLines,
       "",
-      "— Аукцион",
+      `Время закрытия: ${mskDateTimeLabel(new Date())} (МСК)`,
     ]
-      .filter(Boolean)
-      .join("\n"),
-    sourceKey: `auction:win:${lot.id}`,
-  });
+      .filter((x) => x != null)
+      .join("\n");
+
+    await mailFromFaction({
+      authorId: keech.id,
+      factionName: sameFaction ? winner.faction.name : sellerFactionName,
+      recipientIds: [lot.userId],
+      title: sameFaction
+        ? `Аукцион · выкуп · ${winner.faction.name}`
+        : `Аукцион · продажа · ${sellerFactionName} → ${winner.faction.name}`,
+      body: [
+        sameFaction
+          ? `Фракция «${winner.faction.name}» выкупила тебя на аукционе — ты остаёшься в составе.`
+          : `Тебя купила фракция «${winner.faction.name}». Ты переходишь из «${sellerFactionName}».`,
+        "",
+        detailBlock,
+        "",
+        formatDossierBlock(dossier, nick),
+        "",
+        `— Штаб · ${sameFaction ? winner.faction.name : sellerFactionName}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      sourceKey: `auction:win:player:${lot.id}`,
+    });
+
+    const sellerStaffIds = [
+      ...(staffSeller?.leaderIds || []),
+      ...(staffSeller?.deputyIds || []),
+    ];
+    if (sellerStaffIds.length) {
+      await mailFromFaction({
+        authorId: keech.id,
+        factionName: sellerFactionName,
+        recipientIds: sellerStaffIds,
+        title: sameFaction
+          ? `Аукцион · выкуп своего · ${nick}`
+          : `Аукцион · продажа · ${nick} → ${winner.faction.name}`,
+        body: [
+          sameFaction
+            ? `Ваша фракция выкупила ${nick} за ${winAmt.toLocaleString("ru-RU")} ${BD_MARK}.`
+            : `Продажа с аукциона: ${nick} ушёл в «${winner.faction.name}».`,
+          "",
+          detailBlock,
+          "",
+          `— Штаб · ${sellerFactionName}`,
+        ].join("\n"),
+        sourceKey: `auction:win:seller:${lot.id}`,
+      });
+    }
+
+    const buyerStaffIds = [
+      ...(staffWinner?.leaderIds || []),
+      ...(staffWinner?.deputyIds || []),
+    ].filter((id) => !sameFaction || !sellerStaffIds.includes(id));
+    if (buyerStaffIds.length && !sameFaction) {
+      await mailFromFaction({
+        authorId: keech.id,
+        factionName: winner.faction.name,
+        recipientIds: buyerStaffIds,
+        title: `Аукцион · покупка · ${nick}`,
+        body: [
+          `Покупка с аукциона: ${nick} из «${sellerFactionName}» за ${winAmt.toLocaleString("ru-RU")} ${BD_MARK}.`,
+          "Игрок уже в вашем составе.",
+          "",
+          detailBlock,
+          "",
+          formatDossierBlock(dossier, nick),
+          "",
+          `— Штаб · ${winner.faction.name}`,
+        ].join("\n"),
+        sourceKey: `auction:win:buyer:${lot.id}`,
+      });
+    }
+  } else {
+    await mailAuction({
+      authorId: keech.id,
+      recipientIds: winnerRecipients,
+      title: sameFaction
+        ? `Аукцион · ${nick} · остаётся в «${winner.faction.name}»`
+        : `Аукцион · ${nick} → ${winner.faction.name}`,
+      body: [
+        sameFaction
+          ? `Победа своей фракции: «${winner.faction.name}» выкупила ${nick} за ${winAmt.toLocaleString("ru-RU")} ${BD_MARK} — игрок остаётся в составе.`
+          : `Победа: «${winner.faction.name}» забрала ${nick} за ${winAmt.toLocaleString("ru-RU")} ${BD_MARK}.`,
+        recruitCut > 0
+          ? `Игроку на личный баланс: ${recruitCut.toLocaleString("ru-RU")} ${BD_MARK} (${cutPct}%).`
+          : null,
+        `Остальное — в банк Аукциона.`,
+        "",
+        formatDossierBlock(dossier, nick),
+        "",
+        "— Аукцион",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      sourceKey: `auction:win:${lot.id}`,
+    });
+  }
 
   for (const b of losers) {
-    const f = await listSriFactions().then((fs) => fs.find((x) => x.id === b.factionId));
+    const f = allFactions.find((x) => x.id === b.factionId);
     await mailAuction({
       authorId: keech.id,
       recipientIds: [...(f?.leaderIds || []), ...(f?.deputyIds || []), keech.id],
@@ -641,9 +866,9 @@ export async function listAuctionBoard(opts?: { factionId?: string }) {
   await ensureAuctionBank();
   const bank = await prisma.auctionBank.findUnique({ where: { id: "global" } });
   const lots = await prisma.factionAuctionLot.findMany({
-    where: { status: { in: ["OPEN", "SETTLED"] } },
+    where: { status: { in: ["OPEN", "SETTLED", "EXPIRED", "CANCELLED"] } },
     orderBy: [{ status: "asc" }, { endsAt: "desc" }],
-    take: 60,
+    take: 80,
     include: {
       user: {
         select: { id: true, nick: true, steamName: true, steamId: true },
@@ -661,6 +886,7 @@ export async function listAuctionBoard(opts?: { factionId?: string }) {
   return {
     bankBalance: bank?.blueberryBalance ?? 0,
     hours: AUCTION_HOURS,
+    factionListDays: FACTION_LIST_AUCTION_DAYS,
     recruitCutRatio: AUCTION_RECRUIT_CUT_RATIO,
     selfCutRatio: AUCTION_SELF_CUT_RATIO,
     /** Фиксированный пресет 5 фракций для сетки ставок. */
@@ -914,6 +1140,295 @@ export async function openSelfListAuction(opts: {
     minBidBd,
     endsAt: endsAt.toISOString(),
   };
+}
+
+/**
+ * Штаб выставляет бойца на аукцион (вкладка Трансферы → Аукцион).
+ * Игрок остаётся в составе до покупки / до конца недели без ставок.
+ * Стартовая цена ≥ рыночной; торги FACTION_LIST_AUCTION_DAYS дней.
+ */
+export async function openFactionListAuction(opts: {
+  factionId: string;
+  userId: string;
+  actorUserId: string;
+  /** Стартовая / мин. ставка; если ниже рынка — отклоняем. */
+  askPrice: number;
+}): Promise<
+  | {
+      ok: true;
+      lotId: string;
+      nick: string;
+      minBidBd: number;
+      marketBd: number;
+      endsAt: string;
+    }
+  | {
+      ok: false;
+      error: string;
+      marketBd?: number;
+      until?: string;
+      factionName?: string;
+      trainDays30?: number;
+      minTrainDays30?: number;
+    }
+> {
+  const { estimatePlayerPrice, ESTIMATE_BASE } = await import(
+    "@/lib/blueberryDollar"
+  );
+  const { activeContractForUser } = await import("@/lib/factionHr");
+  const { loadTrainDaysLastN } = await import("@/lib/factionRace");
+  const keech = await keechUser();
+  if (!keech) return { ok: false, error: "no_keech" };
+
+  const ask = Math.max(0, Math.round(opts.askPrice));
+  if (ask < 1) return { ok: false, error: "bad_price" };
+
+  const member = await prisma.factionMember.findFirst({
+    where: { factionId: opts.factionId, userId: opts.userId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          nick: true,
+          name: true,
+          steamName: true,
+          steamId: true,
+        },
+      },
+      faction: { select: { id: true, name: true, clanId: true } },
+    },
+  });
+  if (!member) return { ok: false, error: "not_member" };
+  if (member.seat !== "MEMBER") return { ok: false, error: "not_member_seat" };
+
+  const contract = await activeContractForUser(opts.userId);
+  if (contract) {
+    const fac = await prisma.faction.findUnique({
+      where: { id: contract.factionId },
+      select: { name: true },
+    });
+    return {
+      ok: false,
+      error: "contract_active",
+      until: contract.endsAt.toLocaleDateString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }),
+      factionName: fac?.name || "фракция",
+    };
+  }
+
+  const openLot = await prisma.factionAuctionLot.findFirst({
+    where: { userId: opts.userId, status: "OPEN" },
+  });
+  if (openLot) return { ok: false, error: "already_on_auction" };
+
+  try {
+    const { isProtectedRaceReserve } = await import("@/lib/factionRaceEngine");
+    if (await isProtectedRaceReserve(opts.factionId, opts.userId)) {
+      return { ok: false, error: "race_reserve" };
+    }
+  } catch {
+    /* ignore */
+  }
+
+  const reserveUser = await prisma.user.findUnique({
+    where: { id: opts.userId },
+    select: {
+      reserveUntil: true,
+      clanMemberships: {
+        where: {
+          role: "RESERVE",
+          clan: { tag: "BB", isExternal: false },
+        },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+  const inReserve =
+    isActiveReserve(reserveUser?.reserveUntil) ||
+    (reserveUser?.clanMemberships?.length || 0) > 0;
+  const trainMap = await loadTrainDaysLastN([opts.userId], 7);
+  const trainDays7 = trainMap.get(opts.userId) || 0;
+  // Резерв можно выставлять при любой явке; остальные — строго >3 TR/нед.
+  if (!inReserve && trainDays7 < FACTION_LIST_MIN_TRAIN_DAYS_WEEK) {
+    return {
+      ok: false,
+      error: "low_attendance",
+      trainDays7,
+      trainDays30: trainDays7,
+      minTrainDaysWeek: FACTION_LIST_MIN_TRAIN_DAYS_WEEK,
+      minTrainDays30: FACTION_LIST_MIN_TRAIN_DAYS_WEEK,
+    };
+  }
+
+  const grindRows = await prisma.factionLedgerEntry.groupBy({
+    by: ["userId"],
+    where: { userId: opts.userId, kind: "grind", amount: { gt: 0 } },
+    _sum: { amount: true },
+  });
+  const grindBroughtBd = Math.max(0, Math.round(grindRows[0]?._sum.amount || 0));
+  const marketBd = estimatePlayerPrice({ grindBroughtBd });
+  if (ask < marketBd) {
+    return { ok: false, error: "below_market", marketBd };
+  }
+
+  const nick = personLabel(member.user);
+  const startsAt = new Date();
+  const endsAt = factionListAuctionEndsAt(startsAt);
+
+  const lot = await prisma.$transaction(async (tx) => {
+    await tx.transferListing.updateMany({
+      where: { playerUserId: opts.userId, status: "ACTIVE" },
+      data: { status: "WITHDRAWN" },
+    });
+    return tx.factionAuctionLot.create({
+      data: {
+        userId: opts.userId,
+        status: "OPEN",
+        startsAt,
+        endsAt,
+        lotKind: "faction_list",
+        minBidBd: ask,
+        sourceFactionId: opts.factionId,
+        note: `faction_list:${opts.factionId}:ask=${ask}:market=${marketBd}`,
+      },
+    });
+  });
+
+  const recipients = await staffIdsForAuctionFactions();
+  await mailAuction({
+    authorId: keech.id,
+    recipientIds: recipients,
+    title: `Аукцион · фракция · ${nick}`,
+    body: [
+      `«${member.faction.name}» выставила ${nick} на аукцион (игрок остаётся в составе до покупки).`,
+      "",
+      `Рынок: ${marketBd.toLocaleString("ru-RU")} ${BD_MARK} · старт / мин. ставка: ${ask.toLocaleString("ru-RU")} ${BD_MARK}`,
+      `(база ${ESTIMATE_BASE.toLocaleString("ru-RU")} + гринд ${grindBroughtBd.toLocaleString("ru-RU")}).`,
+      `Торги: ${FACTION_LIST_AUCTION_DAYS} дн. · до ${mskDateTimeLabel(endsAt)} (МСК).`,
+      "Без ставок к дедлайну — лот снимается, игрок остаётся во фракции.",
+      `Победа другой фракции: ${Math.round(AUCTION_SELF_CUT_RATIO * 100)}% игроку на личный B$, ${Math.round(AUCTION_FACTION_SELLER_RATIO * 100)}% → казне продавца; игрок переходит.`,
+      "",
+      "Ставки — в Трансферы → Аукцион (или Менеджмент → Аукцион).",
+      "",
+      "— Аукцион",
+    ].join("\n"),
+    sourceKey: `auction:faction_list:${lot.id}`,
+  });
+
+  await mailFromFaction({
+    authorId: opts.actorUserId || keech.id,
+    factionName: member.faction.name,
+    recipientIds: [opts.userId],
+    title: `Аукцион · вас выставили · ${member.faction.name}`,
+    body: [
+      `Штаб фракции «${member.faction.name}» выставил тебя на аукцион.`,
+      "",
+      "Что это значит",
+      "• Пока идут торги, ты остаёшься в составе фракции.",
+      `• Стартовая / мин. ставка: ${ask.toLocaleString("ru-RU")} ${BD_MARK}`,
+      `• Рыночная стоимость: ${marketBd.toLocaleString("ru-RU")} ${BD_MARK}`,
+      `• Срок торгов: ${FACTION_LIST_AUCTION_DAYS} дн. · до ${mskDateTimeLabel(endsAt)} (МСК)`,
+      `• Твоя явка: ${trainDays30} TR-дней за 30 суток`,
+      "",
+      "Если ставок не будет — лот снимут, ты останешься во фракции.",
+      `Если купит другая фракция — перейдёшь к ней; тебе ${Math.round(AUCTION_SELF_CUT_RATIO * 100)}% победной ставки на личный B$, казне продавца — ${Math.round(AUCTION_FACTION_SELLER_RATIO * 100)}%.`,
+      "",
+      "Вопросы — командиру или заму.",
+      "",
+      `— Штаб · ${member.faction.name}`,
+    ].join("\n"),
+    sourceKey: `auction:faction_list:player:${lot.id}`,
+    tags: ["Аукцион", "Фракции"],
+  });
+
+  await writeActionLog({
+    category: "faction",
+    action: "faction_auction_list",
+    message: `«${member.faction.name}» выставила ${nick} на аукцион (мин. ${ask} ${BD_MARK}, ${FACTION_LIST_AUCTION_DAYS} дн.).`,
+    actorId: opts.actorUserId,
+    targetId: opts.userId,
+    targetNick: nick,
+    clanId: member.faction.clanId,
+    clanTag: "BB",
+    meta: { lotId: lot.id, minBidBd: ask, marketBd, trainDays30 },
+  });
+
+  return {
+    ok: true,
+    lotId: lot.id,
+    nick,
+    minBidBd: ask,
+    marketBd,
+    endsAt: endsAt.toISOString(),
+  };
+}
+
+/** Штаб снимает свой faction_list лот до конца торгов (ставки возвращаются). */
+export async function cancelFactionListAuction(opts: {
+  lotId: string;
+  factionId: string;
+  actorUserId: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const lot = await prisma.factionAuctionLot.findUnique({
+    where: { id: opts.lotId },
+    include: {
+      bids: { where: { status: "ACTIVE" }, select: { id: true } },
+      user: { select: { nick: true, name: true, steamName: true } },
+    },
+  });
+  if (!lot || lot.status !== "OPEN") return { ok: false, error: "lot_closed" };
+  if (lot.lotKind !== "faction_list") return { ok: false, error: "wrong_kind" };
+  if (lot.sourceFactionId !== opts.factionId) {
+    return { ok: false, error: "not_seller" };
+  }
+
+  if (lot.bids.length) {
+    await refundAllBids(
+      lot.id,
+      lot.bids.map((b) => b.id),
+    );
+  }
+  await prisma.factionAuctionLot.update({
+    where: { id: lot.id },
+    data: { status: "CANCELLED" },
+  });
+
+  const nick = personLabel(lot.user);
+  const keech = await keechUser();
+  if (keech) {
+    const recipients = await staffIdsForAuctionFactions();
+    await mailAuction({
+      authorId: keech.id,
+      recipientIds: [...recipients, lot.userId],
+      title: `Аукцион · ${nick} · снят`,
+      body: [
+        `Лот ${nick} снят продавцом с аукциона. Игрок остаётся во фракции.`,
+        lot.bids.length
+          ? "Активные ставки возвращены в казны."
+          : "Ставок не было.",
+        "",
+        "— Аукцион",
+      ].join("\n"),
+      sourceKey: `auction:cancel_list:${lot.id}`,
+    });
+  }
+
+  await writeActionLog({
+    category: "faction",
+    action: "faction_auction_list_cancel",
+    message: `Снят лот аукциона: ${nick}`,
+    actorId: opts.actorUserId,
+    targetId: lot.userId,
+    targetNick: nick,
+    clanTag: "BB",
+    meta: { lotId: lot.id },
+  });
+
+  return { ok: true };
 }
 
 /**

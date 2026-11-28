@@ -293,6 +293,7 @@ type Listable = {
   kit: string;
   estimate: number;
   sellHints: string[];
+  trainDays7?: number;
   trainDays30?: number;
   auctionListAllowed?: boolean;
   inReserve?: boolean;
