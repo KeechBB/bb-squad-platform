@@ -331,6 +331,31 @@ export async function GET(_req: Request, ctx: Ctx) {
   });
 
   const memberKits = scarcity.byUserId;
+  const { loadTrainDaysLastN } = await import("@/lib/factionRace");
+  const {
+    FACTION_LIST_MIN_TRAIN_DAYS_30,
+  } = await import("@/lib/factionAuction");
+  const { isActiveReserve } = await import("@/lib/validation");
+  const memberUserIds = loaded.view.members.map((m) => m.userId);
+  const [trainDays30Map, reserveUsers, clanReserve] = await Promise.all([
+    loadTrainDaysLastN(memberUserIds, 30),
+    prisma.user.findMany({
+      where: { id: { in: memberUserIds } },
+      select: { id: true, reserveUntil: true },
+    }),
+    prisma.clanMember.findMany({
+      where: {
+        userId: { in: memberUserIds },
+        role: "RESERVE",
+        clan: { tag: "BB", isExternal: false },
+      },
+      select: { userId: true },
+    }),
+  ]);
+  const reserveUntilBy = new Map(
+    reserveUsers.map((u) => [u.id, u.reserveUntil] as const),
+  );
+  const clanReserveBy = new Set(clanReserve.map((m) => m.userId));
   const listable = loaded.view.members.map((m) => {
     const kit = memberKits[m.userId] || normalizeKit(m.mainKit);
     const sellHints = scarcityForDeal({
@@ -340,6 +365,10 @@ export async function GET(_req: Request, ctx: Ctx) {
     }).sellHints;
     const estimate = estimateWithKit(priceStats.get(m.userId), kit, scarcityByKit[kit]);
     const st = priceStats.get(m.userId);
+    const trainDays30 = trainDays30Map.get(m.userId) || 0;
+    const inReserve =
+      clanReserveBy.has(m.userId) ||
+      isActiveReserve(reserveUntilBy.get(m.userId) || null);
     return {
       userId: m.userId,
       nick: m.nick,
@@ -347,6 +376,9 @@ export async function GET(_req: Request, ctx: Ctx) {
       kit,
       estimate,
       sellHints,
+      trainDays30,
+      auctionListAllowed: trainDays30 >= FACTION_LIST_MIN_TRAIN_DAYS_30,
+      inReserve,
       stats: st
         ? {
             trainDays14: st.trainDays14,
@@ -371,6 +403,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     minAsk: TRANSFER_MIN_ASK,
     minAskRatio: TRANSFER_MIN_ASK_RATIO,
     listFeeRatio: TRANSFER_LIST_FEE_RATIO,
+    auctionMinTrainDays30: FACTION_LIST_MIN_TRAIN_DAYS_30,
     estimateLabel: ESTIMATE_LABEL,
     estimateHint: ESTIMATE_HINT,
     rosterSize: scarcity.rosterSize,
@@ -527,7 +560,7 @@ export async function POST(req: Request, ctx: Ctx) {
       if (askPrice < floor) {
         return NextResponse.json(
           {
-            error: `Цена не ниже 80% рыночной оценки (от ${floor.toLocaleString("ru-RU")} B$, оценка ${estimate.toLocaleString("ru-RU")} B$)`,
+            error: `Нельзя ниже рыночной стоимости (от ${floor.toLocaleString("ru-RU")} B$, рынок ${estimate.toLocaleString("ru-RU")} B$)`,
             estimate,
             minAsk: floor,
           },
@@ -616,7 +649,7 @@ export async function POST(req: Request, ctx: Ctx) {
       if (askPrice < floor) {
         return NextResponse.json(
           {
-            error: `Цена не ниже 80% рыночной оценки (от ${floor.toLocaleString("ru-RU")} B$)`,
+            error: `Нельзя ниже рыночной стоимости (от ${floor.toLocaleString("ru-RU")} B$)`,
             estimate,
             minAsk: floor,
           },

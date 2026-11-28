@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { BdAmount } from "@/components/BdMark";
 import { DraggableModal } from "@/components/DraggableModal";
+import { FactionTransferAuctionTab } from "@/components/FactionTransferAuctionTab";
 import { factionUiColor } from "@/lib/factionColors";
 import { useFitTablePage } from "@/lib/useFitTablePage";
 
@@ -92,6 +93,7 @@ function MyValueChart({ series }: { series: MyValuePoint[] }) {
 }
 
 type XferSubTab =
+  | "auction"
   | "desk"
   | "ledger"
   | "market"
@@ -109,6 +111,7 @@ function normalizeXferSubTab(v: string | null, staff: boolean): XferSubTab | nul
   if (!v) return null;
   if (v === "deals") return "market"; // старое имя вкладки
   const ok =
+    v === "auction" ||
     v === "desk" ||
     v === "ledger" ||
     v === "market" ||
@@ -290,6 +293,9 @@ type Listable = {
   kit: string;
   estimate: number;
   sellHints: string[];
+  trainDays30?: number;
+  auctionListAllowed?: boolean;
+  inReserve?: boolean;
   stats?: PlayerStats | null;
 };
 
@@ -458,7 +464,7 @@ type Props = {
   scope?: FactionTransfersScope;
 };
 
-const DEAL_TABS: XferSubTab[] = ["desk", "market", "closed"];
+const DEAL_TABS: XferSubTab[] = ["auction", "desk", "market", "closed"];
 const ECONOMY_TABS: XferSubTab[] = ["ledger", "days", "trains"];
 const PLAYER_EARN_TABS: XferSubTab[] = ["players"];
 
@@ -670,7 +676,7 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
 
   const listFloor = useMemo(() => {
     if (!selectedListable) return data?.minAsk || 5000;
-    const ratio = data?.minAskRatio ?? 0.8;
+    const ratio = data?.minAskRatio ?? 1;
     const fromMarket = Math.ceil(selectedListable.estimate * ratio);
     return Math.max(data?.minAsk || 5000, fromMarket);
   }, [selectedListable, data?.minAsk, data?.minAskRatio]);
@@ -1100,6 +1106,15 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
 
       {!embedPlayerEarn ? (
       <div className="admin-tabs clan-tabs xfer-subtabs" role="tablist">
+        {showTab("auction") ? (
+          <button
+            type="button"
+            className={`admin-tab${subTab === "auction" ? " active" : ""}`}
+            onClick={() => selectSubTab("auction")}
+          >
+            Аукцион
+          </button>
+        ) : null}
         {showTab("desk") ? (
           <button
             type="button"
@@ -1159,6 +1174,15 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
 
       {msg ? <p className="xfer-msg">{msg}</p> : null}
       {err && data ? <p className="xfer-err">{err}</p> : null}
+
+      {subTab === "auction" && data ? (
+        <FactionTransferAuctionTab
+          slug={slug}
+          canManage={Boolean(data.canManage)}
+          listable={data.listable}
+          windowOpen={Boolean(data.window?.isOpen)}
+        />
+      ) : null}
 
       {subTab === "desk" && isStaff ? (
         <div className="xfer-tab-body xfer-staff-ops">
@@ -1320,19 +1344,6 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
           ) : null}
 
           <section className="xfer-section">
-            <h4>Баланс ролей вашей фракции</h4>
-            <div className="xfer-scarce-grid">
-              {data.scarcity.map((r) => (
-                <div key={r.kitKey} className={levelClass(r.level)} title={r.hint}>
-                  <span className="xfer-scarce-label">{r.label}</span>
-                  <span className="xfer-scarce-count">{r.count}</span>
-                </div>
-              ))}
-              {!data.scarcity.length ? <span className="muted">Нет данных по китам</span> : null}
-            </div>
-          </section>
-
-          <section className="xfer-section">
           <h4>Выставить на продажу</h4>
           {!data.window.isOpen || !data.eligible ? (
             <p className="muted">
@@ -1406,7 +1417,7 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
             <p className="muted xfer-hint">
               {data.estimateLabel || "оценочная стоимость"}:{" "}
               <BdAmount n={selectedListable.estimate} />
-              {" · мин. цена (80%): "}
+              {" · мин. цена (= рынок): "}
               <BdAmount n={listFloor} />
               {" · комиссия 1% с казны: "}
               <BdAmount
@@ -1420,7 +1431,7 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
           ) : null}
           {selectedListable && listPrice < listFloor ? (
             <p className="xfer-warn">
-              Нельзя ниже 80% рыночной оценки — минимум <BdAmount n={listFloor} />.
+              Нельзя ниже рыночной стоимости — минимум <BdAmount n={listFloor} />.
             </p>
           ) : null}
           {selectedListable?.sellHints?.length ? (
